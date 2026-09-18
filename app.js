@@ -378,7 +378,7 @@
     return {
       key: idx,
       label: "Хто зображений на портреті?",
-      image: "img/personalii/" + it.img,
+      image: it.img,
       imageKind: "portrait",
       prompt: "",
       note: "",
@@ -401,7 +401,7 @@
     return {
       key: idx,
       label: "Що це за пам'ятка?",
-      image: "img/pamyatky/" + it.img,
+      image: it.img,
       imageKind: "object",
       prompt: "",
       note: "",
@@ -573,7 +573,7 @@
       : Quiz.queue[Quiz.index];
     if (key === undefined) return;
     var list = Quiz.mode === "per" ? PERSON : PAMYATKY;
-    var dir = Quiz.mode === "per" ? "img/personalii/" : "img/pamyatky/";
+    var dir = "";
     if (!list[key]) return;
     var im = new Image();
     im.src = dir + list[key].img;
@@ -746,7 +746,7 @@
       var d = document.createElement("div");
       d.className = "list-item list-item-img";
       d.innerHTML =
-        '<img loading="lazy" src="img/personalii/' + it.img + '" alt="">' +
+        '<img loading="lazy" src="' + it.img + '" alt="">' +
         "<div><b>" + esc(it.name) + "</b><span>" +
         (it.years ? esc(it.years) + " · " : "") + esc(it.desc) + "</span></div>";
       box.appendChild(d);
@@ -763,7 +763,7 @@
       var d = document.createElement("div");
       d.className = "list-item list-item-img";
       d.innerHTML =
-        '<img loading="lazy" src="img/pamyatky/' + it.img + '" alt="">' +
+        '<img loading="lazy" src="' + it.img + '" alt="">' +
         "<div><b>" + esc(it.name) + "</b>" +
         (it.note ? "<span>" + esc(it.note) + "</span>" : "") + "</div>";
       box.appendChild(d);
