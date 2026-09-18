@@ -1,0 +1,430 @@
+<!DOCTYPE html>
+<html lang="uk">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Тренажер НМТ</title>
+  <script src="https://telegram.org/js/telegram-web-app.js"></script>
+  <link rel="stylesheet" href="css/style.css">
+
+  <!-- Аналітика. Вмикається лише тоді, коли в config.js вписано ключ. -->
+  <script src="config.js"></script>
+  <script>
+    (function () {
+      var c = window.ANALYTICS || {};
+      if (!c.token || !c.appName) return;      // ключа немає — нічого не вантажимо
+      var s = document.createElement("script");
+      s.async = true;
+      s.src = "https://tganalytics.xyz/index.js";
+      s.onload = function () {
+        try {
+          window.telegramAnalytics.init({ token: c.token, appName: c.appName });
+        } catch (e) {
+          console.warn("Аналітика не запустилася:", e);
+        }
+      };
+      s.onerror = function () { console.warn("Не вдалося завантажити аналітику"); };
+      document.head.appendChild(s);
+    })();
+  </script>
+</head>
+<body>
+
+<div id="app">
+
+  <div class="topbar" id="topbar" hidden>
+    <button class="back-btn" id="backBtn" type="button">‹ Назад</button>
+  </div>
+
+  <!-- ЕКРАН: ГОЛОВНИЙ -->
+  <section class="screen" data-screen="home">
+    <header class="hero">
+      <div class="hero-emoji">🎓</div>
+      <h1>Тренажер НМТ</h1>
+      <p class="hero-sub">Обери предмет і почни тренування</p>
+    </header>
+
+    <div class="stats-row" id="homeStats"></div>
+
+    <nav class="tiles">
+      <button class="tile" data-go="ukr">
+        <span class="tile-icon">📖</span>
+        <span class="tile-text">
+          <span class="tile-title">Українська мова</span>
+          <span class="tile-sub">Наголоси · Фразеологізми</span>
+        </span>
+        <span class="tile-arrow">›</span>
+      </button>
+
+      <button class="tile" data-go="istoriya">
+        <span class="tile-icon">🏛️</span>
+        <span class="tile-text">
+          <span class="tile-title">Історія України</span>
+          <span class="tile-sub">Дати за темами</span>
+        </span>
+        <span class="tile-arrow">›</span>
+      </button>
+
+      <button class="tile tile-muted" data-go="settings">
+        <span class="tile-icon">🎨</span>
+        <span class="tile-text">
+          <span class="tile-title">Налаштування теми</span>
+          <span class="tile-sub">Колір фону та акценту</span>
+        </span>
+        <span class="tile-arrow">›</span>
+      </button>
+    </nav>
+  </section>
+
+  <!-- ЕКРАН: УКРАЇНСЬКА МОВА -->
+  <section class="screen" data-screen="ukr">
+    <header class="page-head">
+      <h2>Українська мова</h2>
+    </header>
+    <nav class="tiles">
+      <button class="tile" data-go="nagolosy">
+        <span class="tile-icon">🔤</span>
+        <span class="tile-text">
+          <span class="tile-title">Наголоси</span>
+          <span class="tile-sub" id="cntNagolosy"></span>
+        </span>
+        <span class="tile-arrow">›</span>
+      </button>
+      <button class="tile" data-go="frazeo">
+        <span class="tile-icon">💬</span>
+        <span class="tile-text">
+          <span class="tile-title">Фразеологізми</span>
+          <span class="tile-sub" id="cntFrazeo"></span>
+        </span>
+        <span class="tile-arrow">›</span>
+      </button>
+    </nav>
+  </section>
+
+  <!-- ЕКРАН: НАГОЛОСИ -->
+  <section class="screen" data-screen="nagolosy">
+    <header class="page-head">
+      <h2>Наголоси</h2>
+      <p class="page-sub">Познач, на яку голосну падає наголос</p>
+    </header>
+    <nav class="tiles">
+      <button class="tile" data-quiz="nag-random">
+        <span class="tile-icon">🎯</span>
+        <span class="tile-text">
+          <span class="tile-title">Звичайний режим</span>
+          <span class="tile-sub">Випадкові слова, без кінця</span>
+        </span>
+      </button>
+      <button class="tile" data-quiz="nag-round">
+        <span class="tile-icon">⏱️</span>
+        <span class="tile-text">
+          <span class="tile-title">Раунд на 10 слів</span>
+          <span class="tile-sub">Із результатом у кінці</span>
+        </span>
+      </button>
+      <button class="tile" data-go="nag-alpha">
+        <span class="tile-icon">🔡</span>
+        <span class="tile-text">
+          <span class="tile-title">За алфавітом</span>
+          <span class="tile-sub">Обери літеру</span>
+        </span>
+        <span class="tile-arrow">›</span>
+      </button>
+      <button class="tile" data-quiz="nag-mistakes">
+        <span class="tile-icon">🔁</span>
+        <span class="tile-text">
+          <span class="tile-title">Робота над помилками</span>
+          <span class="tile-sub" id="cntNagMistakes"></span>
+        </span>
+      </button>
+    </nav>
+  </section>
+
+  <!-- ЕКРАН: НАГОЛОСИ ЗА АЛФАВІТОМ -->
+  <section class="screen" data-screen="nag-alpha">
+    <header class="page-head">
+      <h2>За алфавітом</h2>
+      <p class="page-sub">Обери літеру, з якої починаються слова</p>
+    </header>
+    <div class="letters" id="lettersGrid"></div>
+  </section>
+
+  <!-- ЕКРАН: ФРАЗЕОЛОГІЗМИ -->
+  <section class="screen" data-screen="frazeo">
+    <header class="page-head">
+      <h2>Фразеологізми</h2>
+      <p class="page-sub">Обери правильне значення виразу</p>
+    </header>
+    <nav class="tiles">
+      <button class="tile" data-quiz="frz-random">
+        <span class="tile-icon">🎯</span>
+        <span class="tile-text">
+          <span class="tile-title">Звичайний режим</span>
+          <span class="tile-sub">Випадкові вирази, без кінця</span>
+        </span>
+      </button>
+      <button class="tile" data-quiz="frz-round">
+        <span class="tile-icon">⏱️</span>
+        <span class="tile-text">
+          <span class="tile-title">Раунд на 10 питань</span>
+          <span class="tile-sub">Із результатом у кінці</span>
+        </span>
+      </button>
+      <button class="tile" data-quiz="frz-mistakes">
+        <span class="tile-icon">🔁</span>
+        <span class="tile-text">
+          <span class="tile-title">Робота над помилками</span>
+          <span class="tile-sub" id="cntFrzMistakes"></span>
+        </span>
+      </button>
+      <button class="tile tile-muted" data-go="frz-list">
+        <span class="tile-icon">📋</span>
+        <span class="tile-text">
+          <span class="tile-title">Переглянути список</span>
+          <span class="tile-sub">Усі вирази зі значеннями</span>
+        </span>
+        <span class="tile-arrow">›</span>
+      </button>
+    </nav>
+  </section>
+
+  <!-- ЕКРАН: СПИСОК ФРАЗЕОЛОГІЗМІВ -->
+  <section class="screen" data-screen="frz-list">
+    <header class="page-head">
+      <h2>Усі фразеологізми</h2>
+      <input type="search" id="frzSearch" class="search" placeholder="Пошук…" autocomplete="off">
+    </header>
+    <div class="list" id="frzList"></div>
+  </section>
+
+  <!-- ЕКРАН: ІСТОРІЯ -->
+  <section class="screen" data-screen="istoriya">
+    <header class="page-head">
+      <h2>Історія України</h2>
+    </header>
+    <nav class="tiles">
+      <button class="tile" data-go="daty">
+        <span class="tile-icon">📅</span>
+        <span class="tile-text">
+          <span class="tile-title">Дати</span>
+          <span class="tile-sub" id="cntDaty"></span>
+        </span>
+        <span class="tile-arrow">›</span>
+      </button>
+      <button class="tile" data-go="personalii">
+        <span class="tile-icon">👤</span>
+        <span class="tile-text">
+          <span class="tile-title">Персоналії</span>
+          <span class="tile-sub" id="cntPer"></span>
+        </span>
+        <span class="tile-arrow">›</span>
+      </button>
+      <button class="tile" data-go="pamyatky">
+        <span class="tile-icon">🏰</span>
+        <span class="tile-text">
+          <span class="tile-title">Пам'ятки культури</span>
+          <span class="tile-sub" id="cntPam"></span>
+        </span>
+        <span class="tile-arrow">›</span>
+      </button>
+    </nav>
+  </section>
+
+  <!-- ЕКРАН: ПЕРСОНАЛІЇ -->
+  <section class="screen" data-screen="personalii">
+    <header class="page-head">
+      <h2>Персоналії</h2>
+      <p class="page-sub">Упізнай людину на портреті</p>
+    </header>
+    <nav class="tiles">
+      <button class="tile" data-quiz="per-random">
+        <span class="tile-icon">🎯</span>
+        <span class="tile-text">
+          <span class="tile-title">Звичайний режим</span>
+          <span class="tile-sub">Випадкові портрети, без кінця</span>
+        </span>
+      </button>
+      <button class="tile" data-quiz="per-round">
+        <span class="tile-icon">⏱️</span>
+        <span class="tile-text">
+          <span class="tile-title">Раунд на 10 портретів</span>
+          <span class="tile-sub">Із результатом у кінці</span>
+        </span>
+      </button>
+      <button class="tile" data-quiz="per-mistakes">
+        <span class="tile-icon">🔁</span>
+        <span class="tile-text">
+          <span class="tile-title">Робота над помилками</span>
+          <span class="tile-sub" id="cntPerMistakes"></span>
+        </span>
+      </button>
+      <button class="tile tile-muted" data-go="per-list">
+        <span class="tile-icon">📋</span>
+        <span class="tile-text">
+          <span class="tile-title">Переглянути всіх</span>
+          <span class="tile-sub">Портрети з описами</span>
+        </span>
+        <span class="tile-arrow">›</span>
+      </button>
+    </nav>
+  </section>
+
+  <!-- ЕКРАН: СПИСОК ПЕРСОНАЛІЙ -->
+  <section class="screen" data-screen="per-list">
+    <header class="page-head">
+      <h2>Усі персоналії</h2>
+      <input type="search" id="perSearch" class="search" placeholder="Пошук за іменем…" autocomplete="off">
+    </header>
+    <div class="list" id="perList"></div>
+  </section>
+
+  <!-- ЕКРАН: ПАМ'ЯТКИ -->
+  <section class="screen" data-screen="pamyatky">
+    <header class="page-head">
+      <h2>Пам'ятки культури</h2>
+      <p class="page-sub">Упізнай пам'ятку на фото</p>
+    </header>
+    <nav class="tiles">
+      <button class="tile" data-quiz="pam-random">
+        <span class="tile-icon">🎯</span>
+        <span class="tile-text">
+          <span class="tile-title">Звичайний режим</span>
+          <span class="tile-sub">Випадкові пам'ятки, без кінця</span>
+        </span>
+      </button>
+      <button class="tile" data-quiz="pam-round">
+        <span class="tile-icon">⏱️</span>
+        <span class="tile-text">
+          <span class="tile-title">Раунд на 10 пам'яток</span>
+          <span class="tile-sub">Із результатом у кінці</span>
+        </span>
+      </button>
+      <button class="tile" data-quiz="pam-mistakes">
+        <span class="tile-icon">🔁</span>
+        <span class="tile-text">
+          <span class="tile-title">Робота над помилками</span>
+          <span class="tile-sub" id="cntPamMistakes"></span>
+        </span>
+      </button>
+      <button class="tile tile-muted" data-go="pam-list">
+        <span class="tile-icon">📋</span>
+        <span class="tile-text">
+          <span class="tile-title">Переглянути всі</span>
+          <span class="tile-sub">Фото з назвами</span>
+        </span>
+        <span class="tile-arrow">›</span>
+      </button>
+    </nav>
+  </section>
+
+  <!-- ЕКРАН: СПИСОК ПАМ'ЯТОК -->
+  <section class="screen" data-screen="pam-list">
+    <header class="page-head">
+      <h2>Усі пам'ятки</h2>
+      <input type="search" id="pamSearch" class="search" placeholder="Пошук за назвою…" autocomplete="off">
+    </header>
+    <div class="list" id="pamList"></div>
+  </section>
+
+  <!-- ЕКРАН: ДАТИ (ТЕМИ) -->
+  <section class="screen" data-screen="daty">
+    <header class="page-head">
+      <h2>Дати</h2>
+      <p class="page-sub">Обери тему або тренуй усі підряд</p>
+    </header>
+    <nav class="tiles" id="datyTopics"></nav>
+  </section>
+
+  <!-- ЕКРАН: ГРА -->
+  <section class="screen screen-quiz" data-screen="quiz">
+    <div class="quiz-top">
+      <div class="quiz-bar"><div class="quiz-bar-fill" id="quizBar"></div></div>
+      <div class="quiz-meta">
+        <span id="quizCounter">1</span>
+        <span class="streak" id="quizStreak">🔥 0</span>
+      </div>
+    </div>
+
+    <div class="quiz-body">
+      <p class="quiz-label" id="quizLabel"></p>
+      <figure class="quiz-figure" id="quizFigure" hidden>
+        <img id="quizImage" alt="">
+      </figure>
+      <div class="quiz-prompt" id="quizPrompt"></div>
+      <p class="quiz-note" id="quizNote"></p>
+      <div class="quiz-options" id="quizOptions"></div>
+    </div>
+
+    <div class="quiz-foot">
+      <div class="verdict" id="quizVerdict"></div>
+      <div class="reveal" id="quizReveal" hidden></div>
+      <button class="btn btn-primary" id="quizNext" hidden>Далі</button>
+    </div>
+  </section>
+
+  <!-- ЕКРАН: РЕЗУЛЬТАТ -->
+  <section class="screen screen-result" data-screen="result">
+    <div class="result-card">
+      <div class="result-emoji" id="resEmoji">🎉</div>
+      <div class="result-score" id="resScore"></div>
+      <p class="result-text" id="resText"></p>
+      <div class="result-wrong" id="resWrong"></div>
+      <button class="btn btn-primary" id="resAgain">Ще раз</button>
+      <button class="btn btn-ghost" data-go="home">На головну</button>
+    </div>
+  </section>
+
+  <!-- ЕКРАН: НАЛАШТУВАННЯ ТЕМИ -->
+  <section class="screen" data-screen="settings">
+    <header class="page-head">
+      <h2>Налаштування теми</h2>
+      <p class="page-sub">Зміни застосовуються одразу і зберігаються</p>
+    </header>
+
+    <div class="setting">
+      <label class="setting-row" for="bgPicker">
+        <span>
+          <span class="setting-title">Колір фону</span>
+          <span class="setting-sub">Натисни на кружечок — відкриється палітра з усіма відтінками</span>
+        </span>
+        <input type="color" id="bgPicker" class="color-dot">
+      </label>
+      <div class="swatches" id="bgSwatches"></div>
+    </div>
+
+    <div class="setting">
+      <label class="setting-row" for="accentPicker">
+        <span>
+          <span class="setting-title">Колір акценту</span>
+          <span class="setting-sub">Кнопки, прогрес, виділення</span>
+        </span>
+        <input type="color" id="accentPicker" class="color-dot">
+      </label>
+      <div class="swatches" id="accentSwatches"></div>
+    </div>
+
+    <div class="setting">
+      <div class="setting-row">
+        <span>
+          <span class="setting-title">Заокруглення кутів</span>
+          <span class="setting-sub">Від гострих до круглих</span>
+        </span>
+      </div>
+      <input type="range" id="radiusRange" min="0" max="28" step="2" class="range">
+    </div>
+
+    <button class="btn btn-ghost" id="resetTheme">Повернути стандартну тему</button>
+  </section>
+
+</div>
+
+<!-- Дані -->
+<script src="data/nagolosy.js"></script>
+<script src="data/frazeologizmy.js"></script>
+<script src="data/daty.js"></script>
+<script src="data/personalii.js"></script>
+<script src="data/pamyatky.js"></script>
+<!-- Логіка -->
+<script src="js/app.js"></script>
+</body>
+</html>
