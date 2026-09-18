@@ -913,10 +913,26 @@
     }
   }
 
+  // Повідомляємо воркеру, що застосунок відкрили. Потрібно лише для підрахунку
+  // користувачів. Поза Telegram не працює — там немає підписаних даних.
+  function pingStats() {
+    var cfg = window.ANALYTICS || {};
+    if (!cfg.statsUrl || !tg || !tg.initData) return;
+    try {
+      var body = new Blob([JSON.stringify({ initData: tg.initData })], { type: 'text/plain' });
+      if (navigator.sendBeacon) {
+        navigator.sendBeacon(cfg.statsUrl, body);
+      } else {
+        fetch(cfg.statsUrl, { method: 'POST', body: body, keepalive: true });
+      }
+    } catch (e) { /* статистика ніколи не має заважати застосунку */ }
+  }
+
   function init() {
     if (tg) {
       try { tg.ready(); tg.expand(); } catch (e) { /* ігноруємо */ }
     }
+    pingStats();
     Store.load();
     Theme.apply();
     bind();
