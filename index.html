@@ -5,10 +5,15 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <title>Тренажер НМТ</title>
   <script src="https://telegram.org/js/telegram-web-app.js"></script>
-  <link rel="stylesheet" href="style.css">
+  <!-- УВАГА: ?v=2 у адресах файлів нижче — це номер версії.
+       Telegram і браузери кешують файли, тому після кожної зміни
+       style.css, app.js або файлів з даними збільште цей номер
+       (v=2 → v=3 і так далі) у ВСІХ рядках нижче. Інакше користувачі
+       ще довго бачитимуть стару версію. -->
+  <link rel="stylesheet" href="style.css?v=2">
 
   <!-- Аналітика. Вмикається лише тоді, коли в config.js вписано ключ. -->
-  <script src="config.js"></script>
+  <script src="config.js?v=2"></script>
   <script>
     (function () {
       var c = window.ANALYTICS || {};
@@ -433,12 +438,12 @@
 </div>
 
 <!-- Дані -->
-<script src="nagolosy.js"></script>
-<script src="frazeologizmy.js"></script>
-<script src="daty.js"></script>
-<script src="personalii.js"></script>
-<script src="pamyatky.js"></script>
+<script src="nagolosy.js?v=2"></script>
+<script src="frazeologizmy.js?v=2"></script>
+<script src="daty.js?v=2"></script>
+<script src="personalii.js?v=2"></script>
+<script src="pamyatky.js?v=2"></script>
 <!-- Логіка -->
-<script src="app.js"></script>
+<script src="app.js?v=2"></script>
 </body>
 </html>
