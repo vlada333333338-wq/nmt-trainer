@@ -154,10 +154,16 @@
       root.setProperty("--accent-ink", luminance(accent) < 0.55 ? "#ffffff" : "#14161c");
       root.setProperty("--radius", (t.radius === undefined ? 16 : t.radius) + "px");
 
+      // Колір шапки самого Telegram оновлюємо із затримкою: цей виклик іде через
+      // місток у застосунок і при перетягуванні по колесу гальмує все підряд.
       if (tg && tg.setBackgroundColor) {
-        try { tg.setBackgroundColor(bg); tg.setHeaderColor(bg); } catch (e) { /* ігноруємо */ }
+        clearTimeout(Theme.bridgeTimer);
+        Theme.bridgeTimer = setTimeout(function () {
+          try { tg.setBackgroundColor(bg); tg.setHeaderColor(bg); } catch (e) { /* ігноруємо */ }
+        }, 250);
       }
-    }
+    },
+    bridgeTimer: null
   };
 
   function defaultBg() {
@@ -808,16 +814,10 @@
     return target === "bg" ? (t.bg || defaultBg()) : (t.accent || defaultAccent());
   }
 
-  function setColor(target, hex) {
-    Store.state.theme[target] = hex;
-    Theme.apply();
-    syncPicker(target);
-    clearTimeout(setColor.timer);
-    setColor.timer = setTimeout(function () { Store.save(); }, 400);
-  }
-
-  // положення точки на колесі за відтінком і насиченістю
-  function syncPicker(target) {
+  // Легке оновлення — тільки те, що має мінятися під пальцем.
+  // Палітру заготовок при перетягуванні не чіпаємо: її перемальовування
+  // на кожен рух і було причиною гальмування.
+  function paintPicker(target) {
     var hex = currentColor(target);
     var hsl = hexToHsl(hex);
 
@@ -838,6 +838,12 @@
         : "rgba(255,255,255," + ((hsl.l - 0.5) * 1.7).toFixed(2) + ")";
       wheel.style.setProperty("--wheel-veil", veil);
     }
+    return hsl;
+  }
+
+  // Повне оновлення — при відкритті панелі та після завершення вибору
+  function syncPicker(target) {
+    var hsl = paintPicker(target);
 
     var slider = document.querySelector('[data-light="' + target + '"]');
     if (slider && document.activeElement !== slider) {
@@ -845,35 +851,59 @@
     }
 
     fillSwatches(target === "bg" ? "bgSwatches" : "accentSwatches",
-      target === "bg" ? BG_PRESETS : ACCENT_PRESETS, hex, function (c) {
+      target === "bg" ? BG_PRESETS : ACCENT_PRESETS, currentColor(target), function (c) {
         setColor(target, c);
       });
   }
 
-  function wheelPick(wheel, target, event) {
-    var rect = wheel.getBoundingClientRect();
-    var point = event.touches ? event.touches[0] : event;
-    var dx = point.clientX - (rect.left + rect.width / 2);
-    var dy = point.clientY - (rect.top + rect.height / 2);
-    var radius = rect.width / 2;
-
-    var hue = (Math.atan2(dy, dx) * 180 / Math.PI + 90 + 360) % 360;
-    var sat = Math.min(1, Math.sqrt(dx * dx + dy * dy) / radius);
-
-    var slider = document.querySelector('[data-light="' + target + '"]');
-    var light = slider ? Number(slider.value) / 100 : hexToHsl(currentColor(target)).l;
-
-    setColor(target, hslToHex(hue, sat, light));
+  function setColor(target, hex, light) {
+    Store.state.theme[target] = hex;
+    Theme.apply();
+    if (light) paintPicker(target); else syncPicker(target);
+    clearTimeout(setColor.timer);
+    setColor.timer = setTimeout(function () { Store.save(); }, 500);
   }
 
   function bindWheels() {
     document.querySelectorAll("[data-wheel]").forEach(function (wheel) {
       var target = wheel.dataset.wheel;
       var active = false;
+      var queued = null;
+      var frame = null;
 
-      function start(e) { active = true; wheelPick(wheel, target, e); e.preventDefault(); }
-      function move(e) { if (active) { wheelPick(wheel, target, e); e.preventDefault(); } }
-      function stop() { if (active) { active = false; Store.save(); } }
+      // Події пальця приходять частіше, ніж екран устигає перемалюватися.
+      // Тому запамʼятовуємо останню точку й обробляємо раз на кадр.
+      function paint() {
+        frame = null;
+        if (!queued) return;
+        var rect = wheel.getBoundingClientRect();
+        var dx = queued.x - (rect.left + rect.width / 2);
+        var dy = queued.y - (rect.top + rect.height / 2);
+        queued = null;
+
+        var hue = (Math.atan2(dy, dx) * 180 / Math.PI + 90 + 360) % 360;
+        var sat = Math.min(1, Math.sqrt(dx * dx + dy * dy) / (rect.width / 2));
+
+        var slider = document.querySelector('[data-light="' + target + '"]');
+        var light = slider ? Number(slider.value) / 100 : hexToHsl(currentColor(target)).l;
+
+        setColor(target, hslToHex(hue, sat, light), true);
+      }
+
+      function queue(e) {
+        var p = e.touches ? e.touches[0] : e;
+        queued = { x: p.clientX, y: p.clientY };
+        if (!frame) frame = requestAnimationFrame(paint);
+      }
+
+      function start(e) { active = true; queue(e); e.preventDefault(); }
+      function move(e) { if (active) { queue(e); e.preventDefault(); } }
+      function stop() {
+        if (!active) return;
+        active = false;
+        syncPicker(target);   // повна синхронізація вже після того, як палець відпущено
+        Store.save();
+      }
 
       wheel.addEventListener("pointerdown", start);
       wheel.addEventListener("pointermove", move);
@@ -888,9 +918,9 @@
       var target = slider.dataset.light;
       slider.addEventListener("input", function () {
         var hsl = hexToHsl(currentColor(target));
-        setColor(target, hslToHex(hsl.h, hsl.s, Number(slider.value) / 100));
+        setColor(target, hslToHex(hsl.h, hsl.s, Number(slider.value) / 100), true);
       });
-      slider.addEventListener("change", function () { Store.save(); });
+      slider.addEventListener("change", function () { syncPicker(target); Store.save(); });
     });
 
     document.querySelectorAll("[data-toggle]").forEach(function (btn) {
