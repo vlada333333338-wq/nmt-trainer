@@ -770,22 +770,146 @@
     });
   }
 
+  /* ---------- власне колесо кольорів ---------- */
+  // Системне вікно вибору кольору (input type=color) на різних телефонах
+  // виглядає по-різному, а подекуди й зовсім не відкривається. Тому колесо
+  // намальоване вручну — воно однакове скрізь.
+
+  function hexToHsl(hex) {
+    var c = hexToRgb(hex);
+    var r = c.r / 255, g = c.g / 255, b = c.b / 255;
+    var max = Math.max(r, g, b), min = Math.min(r, g, b);
+    var l = (max + min) / 2, h = 0, s = 0;
+    if (max !== min) {
+      var d = max - min;
+      s = l > 0.5 ? d / (2 - max - min) : d / (max + min);
+      if (max === r) h = (g - b) / d + (g < b ? 6 : 0);
+      else if (max === g) h = (b - r) / d + 2;
+      else h = (r - g) / d + 4;
+      h *= 60;
+    }
+    return { h: h, s: s, l: l };
+  }
+
+  function hslToHex(h, s, l) {
+    h = ((h % 360) + 360) % 360;
+    var c = (1 - Math.abs(2 * l - 1)) * s;
+    var x = c * (1 - Math.abs(((h / 60) % 2) - 1));
+    var m = l - c / 2;
+    var rgb = h < 60 ? [c, x, 0] : h < 120 ? [x, c, 0] : h < 180 ? [0, c, x]
+            : h < 240 ? [0, x, c] : h < 300 ? [x, 0, c] : [c, 0, x];
+    return "#" + rgb.map(function (v) {
+      return ("0" + Math.round((v + m) * 255).toString(16)).slice(-2);
+    }).join("");
+  }
+
+  function currentColor(target) {
+    var t = Store.state.theme;
+    return target === "bg" ? (t.bg || defaultBg()) : (t.accent || defaultAccent());
+  }
+
+  function setColor(target, hex) {
+    Store.state.theme[target] = hex;
+    Theme.apply();
+    syncPicker(target);
+    clearTimeout(setColor.timer);
+    setColor.timer = setTimeout(function () { Store.save(); }, 400);
+  }
+
+  // положення точки на колесі за відтінком і насиченістю
+  function syncPicker(target) {
+    var hex = currentColor(target);
+    var hsl = hexToHsl(hex);
+
+    var dot = document.getElementById(target === "bg" ? "bgDot" : "accentDot");
+    if (dot) dot.style.background = hex;
+
+    var wheel = document.querySelector('[data-wheel="' + target + '"]');
+    if (wheel) {
+      var theta = (hsl.h - 90) * Math.PI / 180;
+      var marker = wheel.querySelector(".wheel-dot");
+      marker.style.left = (50 + hsl.s * 50 * Math.cos(theta)) + "%";
+      marker.style.top = (50 + hsl.s * 50 * Math.sin(theta)) + "%";
+      marker.style.background = hex;
+
+      // колесо тьмяніє або світлішає разом із повзунком яскравості
+      var veil = hsl.l < 0.5
+        ? "rgba(0,0,0," + ((0.5 - hsl.l) * 1.7).toFixed(2) + ")"
+        : "rgba(255,255,255," + ((hsl.l - 0.5) * 1.7).toFixed(2) + ")";
+      wheel.style.setProperty("--wheel-veil", veil);
+    }
+
+    var slider = document.querySelector('[data-light="' + target + '"]');
+    if (slider && document.activeElement !== slider) {
+      slider.value = Math.round(hsl.l * 100);
+    }
+
+    fillSwatches(target === "bg" ? "bgSwatches" : "accentSwatches",
+      target === "bg" ? BG_PRESETS : ACCENT_PRESETS, hex, function (c) {
+        setColor(target, c);
+      });
+  }
+
+  function wheelPick(wheel, target, event) {
+    var rect = wheel.getBoundingClientRect();
+    var point = event.touches ? event.touches[0] : event;
+    var dx = point.clientX - (rect.left + rect.width / 2);
+    var dy = point.clientY - (rect.top + rect.height / 2);
+    var radius = rect.width / 2;
+
+    var hue = (Math.atan2(dy, dx) * 180 / Math.PI + 90 + 360) % 360;
+    var sat = Math.min(1, Math.sqrt(dx * dx + dy * dy) / radius);
+
+    var slider = document.querySelector('[data-light="' + target + '"]');
+    var light = slider ? Number(slider.value) / 100 : hexToHsl(currentColor(target)).l;
+
+    setColor(target, hslToHex(hue, sat, light));
+  }
+
+  function bindWheels() {
+    document.querySelectorAll("[data-wheel]").forEach(function (wheel) {
+      var target = wheel.dataset.wheel;
+      var active = false;
+
+      function start(e) { active = true; wheelPick(wheel, target, e); e.preventDefault(); }
+      function move(e) { if (active) { wheelPick(wheel, target, e); e.preventDefault(); } }
+      function stop() { if (active) { active = false; Store.save(); } }
+
+      wheel.addEventListener("pointerdown", start);
+      wheel.addEventListener("pointermove", move);
+      window.addEventListener("pointerup", stop);
+      // запасний шлях для старих вебвʼю без pointer-подій
+      wheel.addEventListener("touchstart", start, { passive: false });
+      wheel.addEventListener("touchmove", move, { passive: false });
+      window.addEventListener("touchend", stop);
+    });
+
+    document.querySelectorAll("[data-light]").forEach(function (slider) {
+      var target = slider.dataset.light;
+      slider.addEventListener("input", function () {
+        var hsl = hexToHsl(currentColor(target));
+        setColor(target, hslToHex(hsl.h, hsl.s, Number(slider.value) / 100));
+      });
+      slider.addEventListener("change", function () { Store.save(); });
+    });
+
+    document.querySelectorAll("[data-toggle]").forEach(function (btn) {
+      btn.addEventListener("click", function () {
+        haptic("tap");
+        var panel = document.getElementById(btn.dataset.toggle + "Panel");
+        var willOpen = panel.hidden;
+        document.querySelectorAll(".picker").forEach(function (p) { p.hidden = true; });
+        panel.hidden = !willOpen;
+        if (willOpen) syncPicker(btn.dataset.toggle);
+      });
+    });
+  }
+
   function renderSettings() {
     var t = Store.state.theme;
-    document.getElementById("bgPicker").value = t.bg || defaultBg();
-    document.getElementById("accentPicker").value = t.accent || defaultAccent();
     document.getElementById("radiusRange").value = t.radius === undefined ? 16 : t.radius;
-
-    fillSwatches("bgSwatches", BG_PRESETS, t.bg, function (c) {
-      Store.state.theme.bg = c;
-      document.getElementById("bgPicker").value = c;
-      Theme.apply(); Store.save(); renderSettings();
-    });
-    fillSwatches("accentSwatches", ACCENT_PRESETS, t.accent, function (c) {
-      Store.state.theme.accent = c;
-      document.getElementById("accentPicker").value = c;
-      Theme.apply(); Store.save(); renderSettings();
-    });
+    syncPicker("bg");
+    syncPicker("accent");
   }
 
   function fillSwatches(id, colors, current, onPick) {
@@ -881,21 +1005,7 @@
       renderPamList(e.target.value);
     });
 
-    document.getElementById("bgPicker").addEventListener("input", function (e) {
-      Store.state.theme.bg = e.target.value;
-      Theme.apply();
-    });
-    document.getElementById("bgPicker").addEventListener("change", function () {
-      Store.save(); renderSettings();
-    });
-
-    document.getElementById("accentPicker").addEventListener("input", function (e) {
-      Store.state.theme.accent = e.target.value;
-      Theme.apply();
-    });
-    document.getElementById("accentPicker").addEventListener("change", function () {
-      Store.save(); renderSettings();
-    });
+    bindWheels();
 
     document.getElementById("radiusRange").addEventListener("input", function (e) {
       Store.state.theme.radius = Number(e.target.value);

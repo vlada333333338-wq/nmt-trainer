@@ -382,25 +382,39 @@
     </header>
 
     <div class="setting">
-      <label class="setting-row" for="bgPicker">
+      <button class="setting-row" type="button" data-toggle="bg">
         <span>
           <span class="setting-title">Колір фону</span>
-          <span class="setting-sub">Натисни на кружечок — відкриється палітра з усіма відтінками</span>
+          <span class="setting-sub">Натисни, щоб обрати відтінок</span>
         </span>
-        <input type="color" id="bgPicker" class="color-dot">
-      </label>
-      <div class="swatches" id="bgSwatches"></div>
+        <span class="color-dot" id="bgDot"></span>
+      </button>
+      <div class="picker" id="bgPanel" hidden>
+        <div class="wheel" data-wheel="bg"><span class="wheel-dot"></span></div>
+        <label class="slider-row">
+          <span>Яскравість</span>
+          <input type="range" class="range" data-light="bg" min="8" max="96" step="1">
+        </label>
+        <div class="swatches" id="bgSwatches"></div>
+      </div>
     </div>
 
     <div class="setting">
-      <label class="setting-row" for="accentPicker">
+      <button class="setting-row" type="button" data-toggle="accent">
         <span>
           <span class="setting-title">Колір акценту</span>
           <span class="setting-sub">Кнопки, прогрес, виділення</span>
         </span>
-        <input type="color" id="accentPicker" class="color-dot">
-      </label>
-      <div class="swatches" id="accentSwatches"></div>
+        <span class="color-dot" id="accentDot"></span>
+      </button>
+      <div class="picker" id="accentPanel" hidden>
+        <div class="wheel" data-wheel="accent"><span class="wheel-dot"></span></div>
+        <label class="slider-row">
+          <span>Яскравість</span>
+          <input type="range" class="range" data-light="accent" min="25" max="80" step="1">
+        </label>
+        <div class="swatches" id="accentSwatches"></div>
+      </div>
     </div>
 
     <div class="setting">

@@ -321,21 +321,77 @@ body {
 .setting-title { display: block; font-weight: 600; font-size: 15px; }
 .setting-sub { display: block; color: var(--muted); font-size: 13px; }
 
+.setting-row {
+  width: 100%;
+  border: none;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  padding: 0;
+  cursor: pointer;
+}
+
 .color-dot {
   flex: none;
+  display: block;
   width: 46px;
   height: 46px;
-  padding: 0;
   border: 2px solid var(--line);
   border-radius: 50%;
-  background: none;
-  cursor: pointer;
-  appearance: none;
-  -webkit-appearance: none;
+  background: var(--accent);
 }
-.color-dot::-webkit-color-swatch-wrapper { padding: 0; }
-.color-dot::-webkit-color-swatch { border: none; border-radius: 50%; }
-.color-dot::-moz-color-swatch { border: none; border-radius: 50%; }
+
+/* ---------- ВЛАСНЕ КОЛЕСО КОЛЬОРІВ ---------- */
+/* Системне вікно вибору кольору виглядає по-різному на кожному телефоні,
+   а подекуди й не відкривається. Тому колесо намальоване вручну. */
+
+.picker { margin-top: 16px; animation: fade .2s ease; }
+
+.wheel {
+  position: relative;
+  width: min(62vw, 220px);
+  aspect-ratio: 1;
+  margin: 0 auto 18px;
+  border-radius: 50%;
+  touch-action: none;
+  cursor: crosshair;
+  box-shadow: inset 0 0 0 1px var(--line);
+  background:
+    radial-gradient(circle at center, #fff 0%, rgba(255, 255, 255, 0) 100%),
+    conic-gradient(
+      hsl(0 100% 50%), hsl(30 100% 50%), hsl(60 100% 50%), hsl(90 100% 50%),
+      hsl(120 100% 50%), hsl(150 100% 50%), hsl(180 100% 50%), hsl(210 100% 50%),
+      hsl(240 100% 50%), hsl(270 100% 50%), hsl(300 100% 50%), hsl(330 100% 50%),
+      hsl(360 100% 50%));
+}
+
+/* Затемнення/освітлення колеса відповідно до повзунка яскравості,
+   щоб обраний колір на колесі збігався з тим, що бачиш на екрані. */
+.wheel::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  pointer-events: none;
+  background: var(--wheel-veil, transparent);
+}
+
+.wheel-dot {
+  position: absolute;
+  width: 22px;
+  height: 22px;
+  margin: -11px 0 0 -11px;
+  border: 3px solid #fff;
+  border-radius: 50%;
+  box-shadow: 0 0 0 1px rgba(0, 0, 0, .35), 0 2px 6px rgba(0, 0, 0, .4);
+  pointer-events: none;
+  left: 50%;
+  top: 50%;
+}
+
+.slider-row { display: block; margin-bottom: 4px; }
+.slider-row span { display: block; color: var(--muted); font-size: 13px; margin-bottom: 6px; }
 
 .swatches { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 14px; }
 .swatch {
