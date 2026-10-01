@@ -13,6 +13,11 @@
   var DATY_T   = window.DATA_DATY       || [];
   var PERSON   = window.DATA_PERSONALII || [];
   var PAMYATKY = window.DATA_PAMYATKY   || [];
+  var FORMULY  = window.DATA_FORMULY    || [];
+  var FML_T    = window.DATA_FORMULY_TEMY || [];
+  var GRAPHS   = window.MATH_GRAPHS     || null;
+  var PRACTICE = window.MATH_PRACTICE   || null;
+  var TX       = window.TeX || { render: function (s) { return esc(s); } };
 
   // Дати розкладаємо в один плоский список, щоб мати наскрізні номери
   var DATY = [];
@@ -28,13 +33,18 @@
 
   var DEFAULT_STATE = {
     theme: { bg: "", accent: "", radius: 16 },
-    mistakes: { nag: [], frz: [], dat: [], per: [], pam: [] },
+    // Як показувати варіанти в наголосах:
+    //   auto    — літери, а в словах з однаковими голосними ціле слово
+    //   letters — завжди літери
+    //   words   — завжди ціле слово з виділеною голосною
+    opts: { nagMode: "auto" },
+    mistakes: { nag: [], frz: [], dat: [], per: [], pam: [], fml: [] },
     stats: { answered: 0, correct: 0, bestStreak: 0 }
   };
 
   // Хмара Telegram дозволяє максимум 4096 символів на один ключ, тому прогрес
   // розкладаємо по окремих ключах: налаштування + список помилок кожного розділу.
-  var CLOUD_BUCKETS = ["nag", "frz", "dat", "per", "pam"];
+  var CLOUD_BUCKETS = ["nag", "frz", "dat", "per", "pam", "fml"];
   var MAX_MISTAKES = 300;   // із запасом уміщається в 4096 символів
 
   var Store = {
@@ -64,12 +74,14 @@
               var meta = JSON.parse(values.nmt_meta);
               if (meta.theme) self.state.theme = merge(self.state.theme, meta.theme);
               if (meta.stats) self.state.stats = merge(self.state.stats, meta.stats);
+              if (meta.opts) self.state.opts = merge(self.state.opts, meta.opts);
               changed = true;
             } catch (e) { /* пошкоджений запис — ігноруємо */ }
           }
           CLOUD_BUCKETS.forEach(function (b) {
             var v = values["nmt_" + b];
             if (!v) return;
+            if (!self.state.mistakes[b]) self.state.mistakes[b] = [];
             self.state.mistakes[b] = v.split(",").map(Number).filter(function (n) {
               return !isNaN(n);
             });
@@ -92,7 +104,7 @@
       // обрізаємо надто довгі списки помилок, щоб гарантовано влізти в ліміт
       var self = this;
       CLOUD_BUCKETS.forEach(function (b) {
-        var list = self.state.mistakes[b];
+        var list = self.state.mistakes[b] || [];
         if (list.length > MAX_MISTAKES) self.state.mistakes[b] = list.slice(-MAX_MISTAKES);
       });
       this.saveLocal();
@@ -109,10 +121,11 @@
         try {
           cs.setItem("nmt_meta", JSON.stringify({
             theme: self.state.theme,
-            stats: self.state.stats
+            stats: self.state.stats,
+            opts: self.state.opts
           }));
           CLOUD_BUCKETS.forEach(function (b) {
-            cs.setItem("nmt_" + b, self.state.mistakes[b].join(","));
+            cs.setItem("nmt_" + b, (self.state.mistakes[b] || []).join(","));
           });
         } catch (e) { /* ігноруємо */ }
       }, 3000);
@@ -211,6 +224,7 @@
     });
     window.scrollTo(0, 0);
     document.getElementById("topbar").hidden = (stack.length <= 1);
+    fitTexIn(screenEl(name));
     syncBackButton();
   }
 
@@ -278,51 +292,75 @@
 
   /* ====================== ПИТАННЯ ====================== */
 
-  // НАГОЛОСИ: показуємо слово малими, варіанти — його голосні
+  // НАГОЛОСИ: показуємо слово малими, варіанти — його голосні.
+  //
+  // Якщо та сама голосна в слові повторюється («агрономія» — дві «о»),
+  // кнопки з однією літерою стають нерозрізненними: обидві виглядають
+  // однаково, а правильна лише одна. У таких словах варіантами стає саме
+  // слово з виділеною голосною — так, як це виглядає в самому НМТ.
   function makeNagolosyQuestion(idx) {
     var item = NAGOLOSY[idx];
     var word = item.w;
     var lower = word.toLowerCase();
+
     var correctIdx = [];
     for (var i = 0; i < word.length; i++) {
       if (word[i] !== lower[i]) correctIdx.push(i);
     }
-    var options = [];
+
+    var spots = [], counts = {};
     for (var j = 0; j < lower.length; j++) {
       if (VOWELS.indexOf(lower[j]) >= 0) {
-        options.push({ text: lower[j], correct: correctIdx.indexOf(j) >= 0 });
+        spots.push(j);
+        counts[lower[j]] = (counts[lower[j]] || 0) + 1;
       }
     }
+    var mode = (Store.state.opts && Store.state.opts.nagMode) || "auto";
+    var repeats = Object.keys(counts).some(function (c) { return counts[c] > 1; });
+    var ambiguous = mode === "words" ? true : mode === "letters" ? false : repeats;
+
+    var options = spots.map(function (pos) {
+      var correct = correctIdx.indexOf(pos) >= 0;
+      if (!ambiguous) return { text: lower[pos], correct: correct };
+      return {
+        text: markWord(lower, pos, false),
+        html: markWord(lower, pos, true),
+        correct: correct
+      };
+    });
+
     var marked = "";
     for (var k = 0; k < word.length; k++) {
       marked += (word[k] !== lower[k]) ? "<b>" + esc(word[k]) + "</b>" : esc(word[k]);
     }
     return {
       key: idx,
-      label: "Постав наголос",
-      prompt: esc(lower),
+      label: ambiguous ? "Обери слово з правильним наголосом" : "Постав наголос",
+      prompt: ambiguous ? "" : esc(lower),
       note: item.n || "",
-      vowels: true,
+      vowels: !ambiguous,
       options: options,
       answerHtml: marked
     };
   }
 
+  // слово з однією виділеною голосною: «агронОмія»
+  function markWord(lower, pos, html) {
+    var up = lower.charAt(pos).toUpperCase();
+    var left = lower.slice(0, pos), right = lower.slice(pos + 1);
+    if (!html) return left + up + right;
+    return esc(left) + "<b>" + esc(up) + "</b>" + esc(right);
+  }
+
   // ФРАЗЕОЛОГІЗМИ: вираз → 4 значення
   function makeFrazeoQuestion(idx) {
     var item = FRAZEO[idx];
-    var wrong = [];
-    var guard = 0;
-    while (wrong.length < 3 && guard++ < 200) {
-      var cand = FRAZEO[Math.floor(Math.random() * FRAZEO.length)];
-      if (cand.m === item.m) continue;
-      if (wrong.some(function (w) { return w.m === cand.m; })) continue;
-      wrong.push(cand);
-    }
     var options = shuffle(
-      [{ text: item.m, correct: true }].concat(wrong.map(function (w) {
-        return { text: w.m, correct: false };
-      }))
+      [{ text: item.m, correct: true }].concat(
+        pickDistractors(FRAZEO, item, "m", 3, frazeoLength).map(function (m) {
+          return { text: m, correct: false };
+        })
+      )
     );
     return {
       key: idx,
@@ -338,17 +376,16 @@
   // ДАТИ: подія → 4 дати (відволікачі з тієї ж теми)
   function makeDatyQuestion(idx) {
     var item = DATY[idx];
-    var pool = DATY.filter(function (x) { return x.topic === item.topic && x.d !== item.d; });
-    if (pool.length < 3) pool = DATY.filter(function (x) { return x.d !== item.d; });
-    var wrong = [];
-    var used = {};
-    shuffle(pool).forEach(function (c) {
-      if (wrong.length < 3 && !used[c.d]) { used[c.d] = 1; wrong.push(c); }
-    });
+    // спершу шукаємо серед дат тієї ж теми, потім серед усіх —
+    // але однаковий вигляд дати важливіший за тему
+    var sameTopic = DATY.filter(function (x) { return x.topic === item.topic; });
+
     var options = shuffle(
-      [{ text: item.d, correct: true }].concat(wrong.map(function (w) {
-        return { text: w.d, correct: false };
-      }))
+      [{ text: item.d, correct: true }].concat(
+        pickDistractors([sameTopic, DATY], item, "d", 3, dateShape).map(function (d) {
+          return { text: d, correct: false };
+        })
+      )
     );
     return {
       key: idx,
@@ -361,14 +398,89 @@
     };
   }
 
-  // Спільний помічник: вибирає 3 відволікачі з різними назвами
-  function pickDistractors(pool, correctText, field, count) {
+  /* ---------- підбір неправильних варіантів ----------
+     Головне правило: варіанти мають бути однорідні з правильною відповіддю.
+     Якщо на фото ікона, а серед варіантів «собор», «портрет» і «фортеця» —
+     відповідь видно, не дивлячись на фото. Те саме з датами: коли правильна
+     відповідь «1638–1648 рр.», а решта — окремі роки, вибір очевидний.
+     Тому спершу шукаємо кандидатів тієї самої групи, і лише якщо їх забракло,
+     поступово послаблюємо вимогу.                                            */
+
+  // pools — списки кандидатів за спаданням бажаності (наприклад: спершу та сама
+  // тема, потім усі дані). Усередині кожного спершу беремо ту саму групу.
+  // poolFirst — що важливіше, коли ідеальних кандидатів бракує. Для дат
+  // важливіший вигляд відповіді (рік поряд з роками), тож спершу перебираємо
+  // всі дані того самого вигляду. А для назв формул важливіша тема: назва з
+  // іншого розділу одразу впадає в око, тому там спершу вичерпуємо тему.
+  function pickDistractors(pools, item, field, count, groupOf, poolFirst) {
+    if (!Array.isArray(pools[0])) pools = [pools];
     var out = [], used = {};
-    used[correctText] = 1;
-    shuffle(pool).forEach(function (c) {
-      if (out.length < count && !used[c[field]]) { used[c[field]] = 1; out.push(c[field]); }
-    });
+    used[item[field]] = 1;
+
+    var g = groupOf ? groupOf(item) : null;
+    function sameGroup(pool) {
+      return pool.filter(function (c) { return groupOf(c) === g; });
+    }
+
+    var tiers = [];
+    if (poolFirst) {
+      pools.forEach(function (pool) {
+        if (groupOf) tiers.push(sameGroup(pool));
+        tiers.push(pool);
+      });
+    } else {
+      if (groupOf) pools.forEach(function (pool) { tiers.push(sameGroup(pool)); });
+      pools.forEach(function (pool) { tiers.push(pool); });
+    }
+
+    for (var t = 0; t < tiers.length && out.length < count; t++) {
+      shuffle(tiers[t]).forEach(function (c) {
+        if (out.length < count && !used[c[field]]) {
+          used[c[field]] = 1;
+          out.push(c[field]);
+        }
+      });
+    }
     return out;
+  }
+
+  // Вигляд дати: окремий рік, діапазон, місяць, точна дата, століття.
+  // Варіанти підбираються лише такого самого вигляду.
+  function dateShape(item) {
+    var d = item.d;
+    // «1 млн р. тому», «IV–III тис. до н.е.», «XII ст.» — усе це одна група.
+    // Нарізно таких дат надто мало (4 і 5), і трьох відволікачів того самого
+    // вигляду просто не набралося б.
+    if (/млн|тис\.|ст\./.test(d)) return 'давнина';
+    if (/^\d{1,2} [а-яіїє]+ \d{4}/.test(d) || /^\d{1,2} \(\d{1,2}\)/.test(d)) return 'точна';
+    if (/^[а-яіїє]+[–-][а-яіїє]+ \d{4}/.test(d)) return 'місяці';
+    if (/^[а-яіїє]+ \d{4}.*[–-].*\d{4}/.test(d)) return 'місяці';
+    if (/^[а-яіїє]+ \d{4}/.test(d)) return 'місяць';
+    if (/^\d{4}[–-]\d{4}/.test(d)) return 'діапазон';
+    if (/^\d{4}/.test(d)) return 'рік';
+    return 'інше';
+  }
+
+  // Епоха персоналії — щоб поряд із князем не стояв радянський дисидент
+  function personEra(item) {
+    var m = String(item.years).match(/\d{3,4}/);
+    if (!m) return 'невідомо';
+    var y = Number(m[0]);
+    if (y < 1500) return 'середньовіччя';
+    if (y < 1650) return 'xvi';
+    if (y < 1750) return 'xvii';
+    if (y < 1830) return 'xviii';
+    if (y < 1880) return 'xix';
+    return 'xx';
+  }
+
+  // Тип памʼятки: ікона, храм, фортеця, живопис тощо
+  function pamType(item) { return item.t || 'інше'; }
+
+  // Довжина тлумачення: щоб серед трьох коротких не бовванів один довгий
+  function frazeoLength(item) {
+    var n = item.m.length;
+    return n < 30 ? 'коротке' : n < 60 ? 'середнє' : 'довге';
   }
 
   // ПЕРСОНАЛІЇ: портрет → 4 імені; опис зʼявляється лише після відповіді
@@ -376,7 +488,7 @@
     var it = PERSON[idx];
     var options = shuffle(
       [{ text: it.name, correct: true }].concat(
-        pickDistractors(PERSON, it.name, "name", 3).map(function (n) {
+        pickDistractors(PERSON, it, "name", 3, personEra).map(function (n) {
           return { text: n, correct: false };
         })
       )
@@ -390,7 +502,8 @@
       note: "",
       options: options,
       answerHtml: "<b>" + esc(it.name) + "</b>" + (it.years ? " (" + esc(it.years) + ")" : ""),
-      reveal: esc(it.desc)
+      reveal: esc(it.desc),
+      revealAfter: 550
     };
   }
 
@@ -399,7 +512,7 @@
     var it = PAMYATKY[idx];
     var options = shuffle(
       [{ text: it.name, correct: true }].concat(
-        pickDistractors(PAMYATKY, it.name, "name", 3).map(function (n) {
+        pickDistractors(PAMYATKY, it, "name", 3, pamType).map(function (n) {
           return { text: n, correct: false };
         })
       )
@@ -414,6 +527,92 @@
       options: options,
       answerHtml: "<b>" + esc(it.name) + "</b>" + (it.note ? " — " + esc(it.note) : "")
     };
+  }
+
+  /* ---------- ФОРМУЛИ ---------- */
+
+  // Ліва частина формули: S, V, P, y… Варіанти підбираємо передусім серед
+  // формул із такою самою лівою частиною — щоб не можна було вгадати
+  // відповідь просто тому, що решта варіантів «про інше».
+  function fmlSide(item) {
+    var lhs = String(item.f).split("=")[0].replace(/\\[a-zA-Z]+/g, "");
+    var m = lhs.match(/[a-zA-Z]/);
+    return m ? m[0] : "?";
+  }
+
+  // Питання ставимо в обидва боки: то назва → формула, то формула → назва
+  function makeFormulaQuestion(idx) {
+    var it = FORMULY[idx];
+    var sameTopic = FORMULY.filter(function (x) { return x.t === it.t; });
+    var toFormula = Math.random() < 0.55;
+    var topic = fmlTopicTitle(it.t);
+
+    if (toFormula) {
+      var opts = shuffle(
+        [{ tex: it.f, correct: true }].concat(
+          pickDistractors([sameTopic, FORMULY], it, "f", 3, fmlSide).map(function (f) {
+            return { tex: f, correct: false };
+          })
+        )
+      );
+      return {
+        key: idx,
+        label: "Яка формула це описує?",
+        text: it.q,
+        note: topic,
+        optionKind: "tex",
+        options: opts,
+        answerTex: it.f,
+        reveal: it.n || ""
+      };
+    }
+
+    var opts2 = shuffle(
+      [{ text: it.q, correct: true }].concat(
+        pickDistractors([sameTopic, FORMULY], it, "q", 3, fmlSide, true).map(function (q) {
+          return { text: q, correct: false };
+        })
+      )
+    );
+    return {
+      key: idx,
+      label: "Що це за формула?",
+      tex: it.f,
+      note: topic,
+      options: opts2,
+      answerHtml: "<b>" + esc(it.q) + "</b>",
+      reveal: it.n || ""
+    };
+  }
+
+  function fmlTopicTitle(id) {
+    for (var i = 0; i < FML_T.length; i++) if (FML_T[i].id === id) return FML_T[i].title;
+    return "";
+  }
+
+  /* ---------- ГРАФІКИ І ПРАКТИКА ---------- */
+
+  function makeGraphQuestion(kind) {
+    var q = GRAPHS && GRAPHS.makers[kind] ? GRAPHS.makers[kind]() : null;
+    return q || { key: "g", label: "Питання не склалося", text: "Спробуй ще раз.",
+                  options: [{ text: "Далі", correct: true }, { text: "—", correct: false },
+                            { text: "—", correct: false }, { text: "—", correct: false }] };
+  }
+
+  function prcGens(topicId) {
+    if (!PRACTICE) return [];
+    if (topicId === "all") return PRACTICE.all;
+    for (var i = 0; i < PRACTICE.topics.length; i++) {
+      if (PRACTICE.topics[i].id === topicId) return PRACTICE.topics[i].gens;
+    }
+    return PRACTICE.all;
+  }
+
+  function makePracticeQuestion(topicId) {
+    var q = PRACTICE ? PRACTICE.makeFrom(prcGens(topicId)) : null;
+    return q || { key: "p", label: "Задача не склалася", text: "Спробуй ще раз.",
+                  options: [{ text: "Далі", correct: true }, { text: "—", correct: false },
+                            { text: "—", correct: false }, { text: "—", correct: false }] };
   }
 
   /* ====================== ГРА ====================== */
@@ -438,7 +637,17 @@
     Quiz.make = opts.make;
     Quiz.pool = opts.pool;
     Quiz.endless = !!opts.endless;
-    Quiz.queue = opts.endless ? [] : shuffle(opts.pool).slice(0, opts.limit || opts.pool.length);
+    if (opts.endless) {
+      Quiz.queue = [];
+    } else if (opts.generated) {
+      // задачі складаються на ходу, тому просто набираємо потрібну кількість
+      Quiz.queue = [];
+      for (var g = 0; g < (opts.limit || 10); g++) {
+        Quiz.queue.push(opts.pool[Math.floor(Math.random() * opts.pool.length)]);
+      }
+    } else {
+      Quiz.queue = shuffle(opts.pool).slice(0, opts.limit || opts.pool.length);
+    }
     Quiz.total = Quiz.endless ? 0 : Quiz.queue.length;
     Quiz.index = 0;
     Quiz.correct = 0;
@@ -483,10 +692,25 @@
       img.removeAttribute("src");
     }
 
+    // графік усередині питання
+    var gBox = document.getElementById("quizGraph");
+    gBox.innerHTML = q.svg || "";
+    gBox.hidden = !q.svg;
+
+    // формула великим шрифтом
+    var texBox = document.getElementById("quizTex");
+    texBox.innerHTML = q.tex ? TX.render(q.tex) : "";
+    texBox.hidden = !q.tex;
+
     var promptEl = document.getElementById("quizPrompt");
     promptEl.innerHTML = q.prompt || "";
     promptEl.hidden = !q.prompt;
     promptEl.classList.toggle("is-long", (q.prompt || "").length > 34);
+
+    // звичайний текст умови
+    var textEl = document.getElementById("quizText");
+    textEl.textContent = q.text || "";
+    textEl.hidden = !q.text;
 
     var noteEl = document.getElementById("quizNote");
     noteEl.textContent = q.note || "";
@@ -505,16 +729,25 @@
     preloadNext();
 
     var box = document.getElementById("quizOptions");
-    box.className = "quiz-options" + (q.vowels ? " is-vowels" : "");
+    box.className = "quiz-options" +
+      (q.vowels ? " is-vowels" : "") +
+      (q.optionKind === "graphs" ? " is-graphs" : "") +
+      (q.optionKind === "tex" ? " is-tex" : "");
     box.innerHTML = "";
     q.options.forEach(function (opt) {
       var b = document.createElement("button");
       b.className = "opt";
       b.type = "button";
-      b.textContent = opt.text;
+      if (opt.html) b.innerHTML = opt.html;              // готовий малюнок
+      else if (opt.tex) {                                 // формула
+        b.innerHTML = TX.render(opt.tex);
+        b.setAttribute("data-tex-src", opt.tex);          // стане в пригоді для перевірок
+      }
+      else b.textContent = opt.text;
       b.addEventListener("click", function () { answer(opt, b); });
       box.appendChild(b);
     });
+    fitTexIn(document.getElementById("quizBody") || screenEl("quiz"));
   }
 
   function answer(opt, btn) {
@@ -535,16 +768,17 @@
       Store.state.stats.correct++;
       if (Quiz.streak > Store.state.stats.bestStreak) Store.state.stats.bestStreak = Quiz.streak;
       removeMistake(Quiz.mode, q.key);
-      document.getElementById("quizVerdict").innerHTML = "<b>Правильно!</b> " + q.answerHtml;
+      document.getElementById("quizVerdict").innerHTML = "<b>Правильно!</b> " + answerOf(q);
       haptic("ok");
     } else {
       Quiz.streak = 0;
       Quiz.wrongItems.push(q);
       addMistake(Quiz.mode, q.key);
-      document.getElementById("quizVerdict").innerHTML = "<i>Правильна відповідь:</i> " + q.answerHtml;
+      document.getElementById("quizVerdict").innerHTML = "<i>Правильна відповідь:</i> " + answerOf(q);
       haptic("bad");
     }
     document.getElementById("quizStreak").textContent = "🔥 " + Quiz.streak;
+    fitTexIn(screenEl("quiz"));
     Store.save();
 
     var next = document.getElementById("quizNext");
@@ -552,16 +786,64 @@
     next.textContent = (!Quiz.endless && Quiz.index >= Quiz.total) ? "Результат" : "Далі";
     scrollToEnd();
 
-    // Довідка про персоналію зʼявляється окремо, вже після імені
-    if (q.reveal) {
-      var box = document.getElementById("quizReveal");
-      setTimeout(function () {
-        if (Quiz.current !== q) return;   // користувач уже перегорнув
-        box.innerHTML = q.reveal;
-        box.hidden = false;
-        scrollToEnd();
-      }, 550);
+    // Пояснення. Для персоналій воно зʼявляється з паузою — спершу імʼя,
+    // і лише потім довідка про людину.
+    if (q.reveal || q.revealTex) {
+      var rbox = document.getElementById("quizReveal");
+      var html = (q.revealTex ? '<div class="reveal-tex">' + TX.render(q.revealTex) + "</div>" : "") +
+                 (q.reveal ? "<div>" + q.reveal + "</div>" : "");
+      var delay = q.revealAfter || 0;
+      if (delay) {
+        setTimeout(function () {
+          if (Quiz.current !== q) return;   // користувач уже перегорнув
+          rbox.innerHTML = html;
+          rbox.hidden = false;
+          fitTexIn(screenEl("quiz"));
+          scrollToEnd();
+        }, delay);
+      } else {
+        rbox.innerHTML = html;
+        rbox.hidden = false;
+        fitTexIn(screenEl("quiz"));
+      }
     }
+  }
+
+  /* Деякі формули (тригонометрія, сума косинусів) довші за ширину екрана.
+     Замість бічної прокрутки просто трохи зменшуємо такий запис — так він
+     лишається в один рядок і видно його весь. */
+  var FIT_SELECTOR = ".quiz-tex, .quiz-options .opt, .list-tex, .reveal-tex, .verdict";
+
+  function fitOne(host) {
+    var tx = host.querySelector(".tx");
+    if (!tx) return;
+    tx.style.fontSize = "";
+    var cs = getComputedStyle(host);
+    var avail = host.clientWidth - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight) - 2;
+    var w = tx.getBoundingClientRect().width;
+    if (!avail || !w || w <= avail) return;
+    var cur = parseFloat(getComputedStyle(tx).fontSize);
+    var size = Math.max(11, cur * (avail / w));
+    tx.style.fontSize = size.toFixed(1) + "px";
+  }
+
+  function fitTexIn(root) {
+    if (!root) return;
+    root.querySelectorAll(FIT_SELECTOR).forEach(fitOne);
+  }
+
+  function answerOf(q) {
+    if (q.answerHtml) return q.answerHtml;
+    if (q.answerTex) return TX.render(q.answerTex);
+    return "";
+  }
+
+  // Короткий заголовок питання — для списку помилок у кінці раунду
+  function titleOf(q) {
+    if (q.prompt) return q.prompt;
+    if (q.tex) return TX.render(q.tex);
+    if (q.text) return esc(q.text);
+    return q.label ? esc(q.label) : "";
   }
 
   function scrollToEnd() {
@@ -604,25 +886,32 @@
       Quiz.wrongItems.forEach(function (q) {
         var d = document.createElement("div");
         d.className = "list-item" + (q.image ? " list-item-img" : "");
-        var body = q.prompt
-          ? "<b>" + q.prompt + "</b><span>" + q.answerHtml.replace(/<\/?b>/g, "") + "</span>"
-          : "<span>" + q.answerHtml + "</span>";
+        var head = titleOf(q);
+        var tail = answerOf(q).replace(/<\/?b>/g, "");
+        var body = head
+          ? "<b>" + head + "</b><span>" + tail + "</span>"
+          : "<span>" + tail + "</span>";
         d.innerHTML = (q.image ? '<img src="' + q.image + '" alt="">' : "") +
                       "<div>" + body + "</div>";
         wrongBox.appendChild(d);
       });
     }
     go("result");
+    fitTexIn(screenEl("result"));
   }
 
   /* ====================== ПОМИЛКИ ====================== */
 
+  // У графіках і практиці задачі складаються на ходу, тому запамʼятовувати
+  // «цю саму задачу» немає сенсу — списку помилок у цих режимах немає.
   function addMistake(mode, key) {
     var list = Store.state.mistakes[mode];
+    if (!list || typeof key !== "number") return;
     if (list.indexOf(key) < 0) list.push(key);
   }
   function removeMistake(mode, key) {
     var list = Store.state.mistakes[mode];
+    if (!list || typeof key !== "number") return;
     var i = list.indexOf(key);
     if (i >= 0) list.splice(i, 1);
   }
@@ -646,11 +935,16 @@
     document.getElementById("cntPam").textContent =
       PAMYATKY.length + " " + plural(PAMYATKY.length, "пам'ятка", "пам'ятки", "пам'яток");
 
+    document.getElementById("cntFml").textContent =
+      FORMULY.length + " " + plural(FORMULY.length, "формула", "формули", "формул") +
+      " · " + FML_T.length + " " + plural(FML_T.length, "тема", "теми", "тем");
+
     var M = Store.state.mistakes;
     setMistakeLabel("cntNagMistakes", M.nag.length, "слово", "слова", "слів");
     setMistakeLabel("cntFrzMistakes", M.frz.length, "вираз", "вирази", "виразів");
     setMistakeLabel("cntPerMistakes", M.per.length, "постать", "постаті", "постатей");
     setMistakeLabel("cntPamMistakes", M.pam.length, "пам'ятка", "пам'ятки", "пам'яток");
+    setMistakeLabel("cntFmlMistakes", (M.fml || []).length, "формула", "формули", "формул");
   }
 
   function setMistakeLabel(id, n, one, few, many) {
@@ -774,6 +1068,107 @@
         (it.note ? "<span>" + esc(it.note) + "</span>" : "") + "</div>";
       box.appendChild(d);
     });
+  }
+
+  function renderFmlTopics() {
+    var box = document.getElementById("fmlTopics");
+    box.innerHTML = "";
+    FML_T.forEach(function (topic) {
+      var keys = [];
+      FORMULY.forEach(function (it, i) { if (it.t === topic.id) keys.push(i); });
+      if (!keys.length) return;
+      var b = document.createElement("button");
+      b.className = "tile";
+      b.type = "button";
+      b.innerHTML =
+        '<span class="tile-icon">' + topic.icon + '</span><span class="tile-text">' +
+        '<span class="tile-title">' + esc(topic.title) + '</span>' +
+        '<span class="tile-sub">' + keys.length + " " +
+        plural(keys.length, "формула", "формули", "формул") + '</span></span>';
+      b.addEventListener("click", function () {
+        haptic("tap");
+        startQuiz({ mode: "fml", make: makeFormulaQuestion, pool: keys, endless: true });
+      });
+      box.appendChild(b);
+    });
+  }
+
+  function renderFmlList(filter) {
+    var box = document.getElementById("fmlList");
+    var f = (filter || "").trim().toLowerCase();
+    box.innerHTML = "";
+    FML_T.forEach(function (topic) {
+      var items = FORMULY.filter(function (it) {
+        return it.t === topic.id &&
+          (!f || it.q.toLowerCase().indexOf(f) >= 0 || (it.n || "").toLowerCase().indexOf(f) >= 0);
+      });
+      if (!items.length) return;
+      var h = document.createElement("p");
+      h.className = "list-head";
+      h.textContent = topic.icon + " " + topic.title;
+      box.appendChild(h);
+      items.forEach(function (it) {
+        var d = document.createElement("div");
+        d.className = "list-item";
+        d.innerHTML = "<b>" + esc(it.q) + "</b>" +
+          '<span class="list-tex">' + TX.render(it.f) + "</span>" +
+          (it.n ? "<span>" + esc(it.n) + "</span>" : "");
+        box.appendChild(d);
+      });
+    });
+    if (!box.children.length) {
+      box.innerHTML = '<p class="page-sub">Нічого не знайшлося.</p>';
+    }
+    fitTexIn(box);
+  }
+
+  function renderPrcTopics() {
+    var box = document.getElementById("prcTopics");
+    box.innerHTML = "";
+    if (!PRACTICE) return;
+
+    PRACTICE.topics.forEach(function (topic) {
+      var b = document.createElement("button");
+      b.className = "tile";
+      b.type = "button";
+      b.innerHTML =
+        '<span class="tile-icon">' + topic.icon + '</span><span class="tile-text">' +
+        '<span class="tile-title">' + esc(topic.title) + '</span>' +
+        '<span class="tile-sub">Задачі без кінця</span></span>';
+      b.addEventListener("click", function () {
+        haptic("tap");
+        startQuiz({ mode: "prc", make: makePracticeQuestion, pool: [topic.id], endless: true });
+      });
+      box.appendChild(b);
+    });
+
+    var ids = PRACTICE.topics.map(function (t) { return t.id; });
+
+    var all = document.createElement("button");
+    all.className = "tile";
+    all.type = "button";
+    all.innerHTML =
+      '<span class="tile-icon">🎲</span><span class="tile-text">' +
+      '<span class="tile-title">Усе підряд</span>' +
+      '<span class="tile-sub">Задачі з усіх тем</span></span>';
+    all.addEventListener("click", function () {
+      haptic("tap");
+      startQuiz({ mode: "prc", make: makePracticeQuestion, pool: ["all"], endless: true });
+    });
+    box.appendChild(all);
+
+    var round = document.createElement("button");
+    round.className = "tile";
+    round.type = "button";
+    round.innerHTML =
+      '<span class="tile-icon">⏱️</span><span class="tile-text">' +
+      '<span class="tile-title">Раунд на 10 задач</span>' +
+      '<span class="tile-sub">Із результатом у кінці</span></span>';
+    round.addEventListener("click", function () {
+      haptic("tap");
+      startQuiz({ mode: "prc", make: makePracticeQuestion, pool: ids, generated: true, limit: 10 });
+    });
+    box.appendChild(round);
   }
 
   /* ---------- власне колесо кольорів ---------- */
@@ -940,6 +1335,23 @@
     document.getElementById("radiusRange").value = t.radius === undefined ? 16 : t.radius;
     syncPicker("bg");
     syncPicker("accent");
+    renderNagMode();
+  }
+
+  var NAG_HINTS = {
+    auto: "Літери, а в словах із двома однаковими голосними («закінчити») — " +
+          "ціле слово, бо однакові літери неможливо розрізнити.",
+    letters: "Завжди окремі літери. У словах з однаковими голосними варіанти " +
+             "будуть на вигляд однакові.",
+    words: "Завжди ціле слово з виділеною голосною — так, як це виглядає в НМТ."
+  };
+
+  function renderNagMode() {
+    var mode = (Store.state.opts && Store.state.opts.nagMode) || "auto";
+    document.querySelectorAll("[data-nagmode]").forEach(function (b) {
+      b.classList.toggle("is-on", b.dataset.nagmode === mode);
+    });
+    document.getElementById("nagModeHint").textContent = NAG_HINTS[mode] || "";
   }
 
   function fillSwatches(id, colors, current, onPick) {
@@ -968,6 +1380,9 @@
         if (target === "frz-list") renderFrzList("");
         if (target === "per-list") renderPerList("");
         if (target === "pam-list") renderPamList("");
+        if (target === "fml-temy") renderFmlTopics();
+        if (target === "fml-list") renderFmlList("");
+        if (target === "praktyka") renderPrcTopics();
         if (target === "settings") renderSettings();
         go(target);
       });
@@ -1006,6 +1421,29 @@
           case "pam-mistakes":
             if (!Store.state.mistakes.pam.length) { alert("Помилок поки немає — спершу потренуйся."); return; }
             startQuiz({ mode: "pam", make: makePamyatkaQuestion, pool: Store.state.mistakes.pam.slice() }); break;
+
+          case "fml-random":
+            startQuiz({ mode: "fml", make: makeFormulaQuestion, pool: all(FORMULY), endless: true }); break;
+          case "fml-round":
+            startQuiz({ mode: "fml", make: makeFormulaQuestion, pool: all(FORMULY), limit: 10 }); break;
+          case "fml-mistakes":
+            if (!Store.state.mistakes.fml.length) { alert("Помилок поки немає — спершу потренуйся."); return; }
+            startQuiz({ mode: "fml", make: makeFormulaQuestion, pool: Store.state.mistakes.fml.slice() }); break;
+
+          case "gph-find-graph":
+            startQuiz({ mode: "gph", make: makeGraphQuestion, pool: ["find-graph"], endless: true }); break;
+          case "gph-find-formula":
+            startQuiz({ mode: "gph", make: makeGraphQuestion, pool: ["find-formula"], endless: true }); break;
+          case "gph-move":
+            startQuiz({ mode: "gph", make: makeGraphQuestion, pool: ["move"], endless: true }); break;
+          case "gph-props":
+            startQuiz({ mode: "gph", make: makeGraphQuestion, pool: ["props"], endless: true }); break;
+          case "gph-round":
+            startQuiz({
+              mode: "gph", make: makeGraphQuestion,
+              pool: ["find-graph", "find-formula", "move", "props"],
+              generated: true, limit: 10
+            }); break;
         }
       });
     });
@@ -1034,6 +1472,9 @@
     document.getElementById("pamSearch").addEventListener("input", function (e) {
       renderPamList(e.target.value);
     });
+    document.getElementById("fmlSearch").addEventListener("input", function (e) {
+      renderFmlList(e.target.value);
+    });
 
     bindWheels();
 
@@ -1042,6 +1483,16 @@
       Theme.apply();
     });
     document.getElementById("radiusRange").addEventListener("change", function () { Store.save(); });
+
+    document.querySelectorAll("[data-nagmode]").forEach(function (b) {
+      b.addEventListener("click", function () {
+        haptic("tap");
+        if (!Store.state.opts) Store.state.opts = { nagMode: "auto" };
+        Store.state.opts.nagMode = b.dataset.nagmode;
+        renderNagMode();
+        Store.save();
+      });
+    });
 
     document.getElementById("resetTheme").addEventListener("click", function () {
       Store.state.theme = { bg: "", accent: "", radius: 16 };

@@ -282,8 +282,11 @@ body {
 
 .quiz-foot { padding-top: 16px; display: flex; flex-direction: column; gap: 12px; }
 .verdict { text-align: center; font-size: 15px; margin-bottom: 12px; min-height: 24px; }
-.verdict b { color: var(--ok); }
-.verdict i { color: var(--bad); font-style: normal; }
+/* курсив і жирний усередині формул не повинні фарбуватися у зелений/червоний —
+   колір призначений лише для самих слів «Правильно!» та «Правильна відповідь» */
+.verdict b, .verdict i { color: inherit; font-style: inherit; }
+.verdict > b { color: var(--ok); }
+.verdict > i { color: var(--bad); font-style: normal; }
 
 /* ---------- КНОПКИ ---------- */
 
@@ -407,3 +410,171 @@ body {
 .swatch.is-on { border-color: var(--text); transform: scale(1.12); }
 
 .range { width: 100%; margin-top: 12px; accent-color: var(--accent); }
+
+/* ---------- МАТЕМАТИКА: ФОРМУЛИ ---------- */
+/* Формули малюються власним рендером (tex.js), без зовнішніх бібліотек —
+   тому вони успадковують колір теми й працюють без інтернету. */
+
+.tx {
+  display: inline-block;
+  font-family: "Times New Roman", "Liberation Serif", Georgia, serif;
+  font-size: 1.12em;
+  line-height: 1.25;
+  white-space: nowrap;
+}
+.tx .tx-v { font-style: italic; padding-right: .02em; }
+.tx .tx-tt { font-style: normal; padding: 0 .12em 0 .09em; }
+.tx .tx-tt:first-child { padding-left: 0; }
+.tx .tx-tt i, .tx .tx-tt .tx-v { font-style: normal; }
+/* мінус на початку виразу не потребує відступу зліва */
+.tx .tx-op:first-child { padding-left: 0; }
+.tx-n > .tx-op:first-child, .tx-d > .tx-op:first-child { padding-left: 0; }
+.tx .tx-op { padding: 0 .18em; }
+.tx .tx-sym { padding: 0 .04em; }
+.tx .tx-sp { display: inline-block; }
+.tx .tx-g { white-space: nowrap; }
+
+/* дріб: вирівнюємо так, щоб риска стояла на рівні знака «=» */
+.tx-fr {
+  display: inline-block;
+  vertical-align: middle;
+  text-align: center;
+  margin: 0 .16em;
+  font-size: .92em;
+  line-height: 1.15;
+}
+.tx-fr > .tx-n { display: block; padding: 0 .3em .06em; border-bottom: 1.3px solid currentColor; }
+.tx-fr > .tx-d { display: block; padding: .06em .3em 0; }
+
+/* корінь */
+.tx-sq { display: inline-block; white-space: nowrap; }
+.tx-sq > .tx-rad { display: inline-block; transform: scaleY(1.25); transform-origin: center; }
+.tx-sq > .tx-sqb {
+  display: inline-block;
+  border-top: 1.3px solid currentColor;
+  padding: .1em .15em 0 .08em;
+  margin-left: -.06em;
+}
+.tx-sq > .tx-idx { font-size: .62em; vertical-align: .75em; margin-right: -.3em; }
+
+/* степені та індекси */
+.tx sup.tx-up, .tx sub.tx-lo { font-size: .68em; line-height: 0; }
+.tx sup.tx-up { vertical-align: .62em; }
+.tx sub.tx-lo { vertical-align: -.28em; }
+
+/* високі дужки навколо дробів */
+.tx-dl { display: inline-block; font-size: 1.5em; line-height: .7; vertical-align: middle; }
+
+.tx-bar, .tx-vec { display: inline-block; position: relative; }
+.tx-bar { border-top: 1.3px solid currentColor; padding: 0 .1em 0 .02em; }
+.tx-vec::before {
+  content: "→";
+  position: absolute;
+  top: -.72em;
+  left: 50%;
+  transform: translateX(-50%) scaleX(.8);
+  font-size: .62em;
+  font-style: normal;
+}
+.tx-bad { color: var(--bad); font-family: monospace; font-size: .85em; }
+
+/* формула в питанні */
+.quiz-tex {
+  text-align: center;
+  margin: 2px 0 10px;
+  padding: 18px 14px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--surface);
+  overflow-x: auto;
+  animation: pop .25s ease;
+}
+.quiz-tex .tx { font-size: 1.6em; }
+
+.quiz-text {
+  text-align: center;
+  font-size: 17px;
+  font-weight: 600;
+  line-height: 1.4;
+  margin: 0 0 6px;
+}
+
+/* варіанти-формули */
+.quiz-options.is-tex .opt { text-align: center; padding: 16px 12px; overflow-x: auto; }
+.quiz-options.is-tex .opt .tx { max-width: 100%; }
+.quiz-options.is-tex .tx { font-size: 1.3em; }
+
+.reveal-tex { margin-bottom: 8px; color: var(--text); }
+
+/* шпаргалка */
+.list-head {
+  margin: 14px 0 2px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: .04em;
+}
+.list-tex { display: block; margin: 8px 0 4px; overflow-x: auto; }
+.list-item .list-tex .tx { font-size: 1.25em; color: var(--text); }
+
+/* ---------- МАТЕМАТИКА: ГРАФІКИ ---------- */
+
+.graph { display: block; width: 100%; height: auto; }
+.graph .g-grid { stroke: var(--line); stroke-width: .6; }
+.graph .g-axis { stroke: var(--muted); stroke-width: .9; }
+.graph .g-arrow { fill: var(--muted); }
+.graph .g-lbl { fill: var(--muted); font-size: 7px; font-family: inherit; font-style: italic; }
+.graph .g-curve { fill: none; stroke: var(--accent); stroke-width: 2.1; stroke-linecap: round; }
+.graph .g-ghost {
+  fill: none;
+  stroke: var(--muted);
+  stroke-width: 1.4;
+  stroke-dasharray: 3 3;
+  opacity: .65;
+}
+
+.quiz-graph {
+  margin: 0 auto 12px;
+  max-width: 300px;
+  padding: 10px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--surface);
+  animation: pop .25s ease;
+}
+
+/* варіанти-малюнки: сітка 2×2 */
+.quiz-options.is-graphs { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.quiz-options.is-graphs .opt { padding: 6px; }
+
+/* слово з виділеним наголосом серед варіантів */
+.quiz-options .opt b { color: var(--accent); font-weight: 700; }
+.quiz-options .opt { word-break: break-word; }
+
+/* ---------- ПЕРЕМИКАЧ ІЗ КІЛЬКОХ ВАРІАНТІВ ---------- */
+
+.segmented {
+  display: flex;
+  gap: 4px;
+  margin-top: 12px;
+  padding: 4px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--bg);
+}
+.seg {
+  flex: 1;
+  padding: 10px 6px;
+  border: none;
+  border-radius: calc(var(--radius) - 4px);
+  background: transparent;
+  color: var(--muted);
+  font: 500 14px/1.2 inherit;
+  cursor: pointer;
+  transition: background .18s ease, color .18s ease;
+}
+.seg:active { transform: scale(.97); }
+.seg.is-on { background: var(--accent); color: var(--accent-ink); font-weight: 600; }
+
+.setting-hint { color: var(--muted); font-size: 12.5px; line-height: 1.45; margin: 10px 2px 0; }

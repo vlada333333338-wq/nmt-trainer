@@ -5,31 +5,45 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <title>Тренажер НМТ</title>
   <script src="https://telegram.org/js/telegram-web-app.js"></script>
-  <!-- УВАГА: ?v=2 у адресах файлів нижче — це номер версії.
-       Telegram і браузери кешують файли, тому після кожної зміни
-       style.css, app.js або файлів з даними збільште цей номер
-       (v=2 → v=3 і так далі) у ВСІХ рядках нижче. Інакше користувачі
-       ще довго бачитимуть стару версію. -->
-  <link rel="stylesheet" href="style.css?v=2">
 
-  <!-- Аналітика. Вмикається лише тоді, коли в config.js вписано ключ. -->
-  <script src="config.js?v=2"></script>
   <script>
+    /* ВЕРСІЯ ФАЙЛІВ — ЄДИНЕ ЧИСЛО, ЯКЕ ТРЕБА ЗМІНИТИ.
+
+       Telegram і браузери надовго запамʼятовують файли застосунку. Щоб
+       користувачі побачили оновлення, після кожної зміни style.css, app.js
+       або файлів з даними збільште це число на одиницю: 3 → 4 → 5 …
+       Більше ніде нічого правити не потрібно.                            */
+
+    var ASSET_VERSION = 3;
+
     (function () {
-      var c = window.ANALYTICS || {};
-      if (!c.token || !c.appName) return;      // ключа немає — нічого не вантажимо
-      var s = document.createElement("script");
-      s.async = true;
-      s.src = "https://tganalytics.xyz/index.js";
-      s.onload = function () {
-        try {
-          window.telegramAnalytics.init({ token: c.token, appName: c.appName });
-        } catch (e) {
-          console.warn("Аналітика не запустилася:", e);
-        }
-      };
-      s.onerror = function () { console.warn("Не вдалося завантажити аналітику"); };
-      document.head.appendChild(s);
+      var v = "?v=" + ASSET_VERSION;
+
+      var css = document.createElement("link");
+      css.rel = "stylesheet";
+      css.href = "style.css" + v;
+      document.head.appendChild(css);
+
+      // Порядок важливий: дані мають завантажитися раніше за логіку.
+      // async = false змушує браузер виконувати файли саме в цьому порядку.
+      [
+        "config.js",
+        "tex.js",
+        "nagolosy.js",
+        "frazeologizmy.js",
+        "daty.js",
+        "personalii.js",
+        "pamyatky.js",
+        "formuly.js",
+        "grafiky.js",
+        "praktyka.js",
+        "app.js"
+      ].forEach(function (name) {
+        var s = document.createElement("script");
+        s.src = name + v;
+        s.async = false;
+        document.head.appendChild(s);
+      });
     })();
   </script>
 </head>
@@ -65,7 +79,16 @@
         <span class="tile-icon">🏛️</span>
         <span class="tile-text">
           <span class="tile-title">Історія України</span>
-          <span class="tile-sub">Дати за темами</span>
+          <span class="tile-sub">Дати · Персоналії · Пам'ятки</span>
+        </span>
+        <span class="tile-arrow">›</span>
+      </button>
+
+      <button class="tile" data-go="matem">
+        <span class="tile-icon">🧮</span>
+        <span class="tile-text">
+          <span class="tile-title">Математика</span>
+          <span class="tile-sub">Формули · Графіки · Практика</span>
         </span>
         <span class="tile-arrow">›</span>
       </button>
@@ -73,8 +96,8 @@
       <button class="tile tile-muted" data-go="settings">
         <span class="tile-icon">🎨</span>
         <span class="tile-text">
-          <span class="tile-title">Налаштування теми</span>
-          <span class="tile-sub">Колір фону та акценту</span>
+          <span class="tile-title">Налаштування</span>
+          <span class="tile-sub">Тема і вигляд завдань</span>
         </span>
         <span class="tile-arrow">›</span>
       </button>
@@ -340,6 +363,157 @@
     <nav class="tiles" id="datyTopics"></nav>
   </section>
 
+  <!-- ЕКРАН: МАТЕМАТИКА -->
+  <section class="screen" data-screen="matem">
+    <header class="page-head">
+      <h2>Математика</h2>
+    </header>
+    <nav class="tiles">
+      <button class="tile" data-go="formuly">
+        <span class="tile-icon">📝</span>
+        <span class="tile-text">
+          <span class="tile-title">Формули</span>
+          <span class="tile-sub" id="cntFml"></span>
+        </span>
+        <span class="tile-arrow">›</span>
+      </button>
+      <button class="tile" data-go="grafiky">
+        <span class="tile-icon">📈</span>
+        <span class="tile-text">
+          <span class="tile-title">Функції та графіки</span>
+          <span class="tile-sub">Упізнавай графіки й перетворення</span>
+        </span>
+        <span class="tile-arrow">›</span>
+      </button>
+      <button class="tile" data-go="praktyka">
+        <span class="tile-icon">✏️</span>
+        <span class="tile-text">
+          <span class="tile-title">Практика</span>
+          <span class="tile-sub">Задачі з числами, щоразу нові</span>
+        </span>
+        <span class="tile-arrow">›</span>
+      </button>
+    </nav>
+  </section>
+
+  <!-- ЕКРАН: ФОРМУЛИ -->
+  <section class="screen" data-screen="formuly">
+    <header class="page-head">
+      <h2>Формули</h2>
+      <p class="page-sub">Питання ставляться в обидва боки: і назва → формула, і формула → назва</p>
+    </header>
+    <nav class="tiles">
+      <button class="tile" data-quiz="fml-random">
+        <span class="tile-icon">🎯</span>
+        <span class="tile-text">
+          <span class="tile-title">Звичайний режим</span>
+          <span class="tile-sub">Випадкові формули, без кінця</span>
+        </span>
+      </button>
+      <button class="tile" data-quiz="fml-round">
+        <span class="tile-icon">⏱️</span>
+        <span class="tile-text">
+          <span class="tile-title">Раунд на 10 питань</span>
+          <span class="tile-sub">Із результатом у кінці</span>
+        </span>
+      </button>
+      <button class="tile" data-go="fml-temy">
+        <span class="tile-icon">📚</span>
+        <span class="tile-text">
+          <span class="tile-title">За темами</span>
+          <span class="tile-sub">Трикутник, стереометрія, похідна…</span>
+        </span>
+        <span class="tile-arrow">›</span>
+      </button>
+      <button class="tile" data-quiz="fml-mistakes">
+        <span class="tile-icon">🔁</span>
+        <span class="tile-text">
+          <span class="tile-title">Робота над помилками</span>
+          <span class="tile-sub" id="cntFmlMistakes"></span>
+        </span>
+      </button>
+      <button class="tile tile-muted" data-go="fml-list">
+        <span class="tile-icon">📋</span>
+        <span class="tile-text">
+          <span class="tile-title">Шпаргалка</span>
+          <span class="tile-sub">Усі формули списком</span>
+        </span>
+        <span class="tile-arrow">›</span>
+      </button>
+    </nav>
+  </section>
+
+  <!-- ЕКРАН: ФОРМУЛИ ЗА ТЕМАМИ -->
+  <section class="screen" data-screen="fml-temy">
+    <header class="page-head">
+      <h2>Формули за темами</h2>
+    </header>
+    <nav class="tiles" id="fmlTopics"></nav>
+  </section>
+
+  <!-- ЕКРАН: ШПАРГАЛКА -->
+  <section class="screen" data-screen="fml-list">
+    <header class="page-head">
+      <h2>Шпаргалка</h2>
+      <input type="search" id="fmlSearch" class="search" placeholder="Пошук за назвою…" autocomplete="off">
+    </header>
+    <div class="list" id="fmlList"></div>
+  </section>
+
+  <!-- ЕКРАН: ГРАФІКИ -->
+  <section class="screen" data-screen="grafiky">
+    <header class="page-head">
+      <h2>Функції та графіки</h2>
+      <p class="page-sub">Графіки малюються щоразу наново, тому питання не повторюються</p>
+    </header>
+    <nav class="tiles">
+      <button class="tile" data-quiz="gph-find-graph">
+        <span class="tile-icon">📈</span>
+        <span class="tile-text">
+          <span class="tile-title">Упізнай графік</span>
+          <span class="tile-sub">Дано формулу — обери малюнок</span>
+        </span>
+      </button>
+      <button class="tile" data-quiz="gph-find-formula">
+        <span class="tile-icon">🔤</span>
+        <span class="tile-text">
+          <span class="tile-title">Упізнай формулу</span>
+          <span class="tile-sub">Дано графік — обери запис</span>
+        </span>
+      </button>
+      <button class="tile" data-quiz="gph-move">
+        <span class="tile-icon">↔️</span>
+        <span class="tile-text">
+          <span class="tile-title">Перенесення графіка</span>
+          <span class="tile-sub">y = f(x − a), y = f(x) + b, y = −f(x)</span>
+        </span>
+      </button>
+      <button class="tile" data-quiz="gph-props">
+        <span class="tile-icon">🧩</span>
+        <span class="tile-text">
+          <span class="tile-title">Властивості функції</span>
+          <span class="tile-sub">Область визначення і значень</span>
+        </span>
+      </button>
+      <button class="tile" data-quiz="gph-round">
+        <span class="tile-icon">⏱️</span>
+        <span class="tile-text">
+          <span class="tile-title">Раунд на 10 питань</span>
+          <span class="tile-sub">Усі типи впереміш</span>
+        </span>
+      </button>
+    </nav>
+  </section>
+
+  <!-- ЕКРАН: ПРАКТИКА -->
+  <section class="screen" data-screen="praktyka">
+    <header class="page-head">
+      <h2>Практика</h2>
+      <p class="page-sub">Числа в задачах щоразу інші, а неправильні варіанти — це типові помилки</p>
+    </header>
+    <nav class="tiles" id="prcTopics"></nav>
+  </section>
+
   <!-- ЕКРАН: ГРА -->
   <section class="screen screen-quiz" data-screen="quiz">
     <div class="quiz-top">
@@ -355,7 +529,10 @@
       <figure class="quiz-figure" id="quizFigure" hidden>
         <img id="quizImage" alt="">
       </figure>
+      <div class="quiz-graph" id="quizGraph" hidden></div>
+      <div class="quiz-tex" id="quizTex" hidden></div>
       <div class="quiz-prompt" id="quizPrompt"></div>
+      <p class="quiz-text" id="quizText" hidden></p>
       <p class="quiz-note" id="quizNote"></p>
       <div class="quiz-options" id="quizOptions"></div>
     </div>
@@ -382,9 +559,24 @@
   <!-- ЕКРАН: НАЛАШТУВАННЯ ТЕМИ -->
   <section class="screen" data-screen="settings">
     <header class="page-head">
-      <h2>Налаштування теми</h2>
+      <h2>Налаштування</h2>
       <p class="page-sub">Зміни застосовуються одразу і зберігаються</p>
     </header>
+
+    <div class="setting">
+      <div class="setting-row">
+        <span>
+          <span class="setting-title">Наголоси: вигляд варіантів</span>
+          <span class="setting-sub">Що саме натискати у завданні</span>
+        </span>
+      </div>
+      <div class="segmented" id="nagModeBox">
+        <button type="button" class="seg" data-nagmode="auto">Як зручніше</button>
+        <button type="button" class="seg" data-nagmode="letters">Літери</button>
+        <button type="button" class="seg" data-nagmode="words">Слова</button>
+      </div>
+      <p class="setting-hint" id="nagModeHint"></p>
+    </div>
 
     <div class="setting">
       <button class="setting-row" type="button" data-toggle="bg">
@@ -437,13 +629,5 @@
 
 </div>
 
-<!-- Дані -->
-<script src="nagolosy.js?v=2"></script>
-<script src="frazeologizmy.js?v=2"></script>
-<script src="daty.js?v=2"></script>
-<script src="personalii.js?v=2"></script>
-<script src="pamyatky.js?v=2"></script>
-<!-- Логіка -->
-<script src="app.js?v=2"></script>
 </body>
 </html>
