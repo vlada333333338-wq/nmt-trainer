@@ -1448,6 +1448,15 @@
       });
     });
 
+    document.getElementById("gateJoin").addEventListener("click", function () {
+      haptic("tap");
+      Gate.open();
+    });
+    document.getElementById("gateCheck").addEventListener("click", function () {
+      haptic("tap");
+      Gate.check(true);
+    });
+
     document.getElementById("backBtn").addEventListener("click", function () {
       haptic("tap");
       back();
@@ -1504,6 +1513,99 @@
     }
   }
 
+  /* ====================== ДОСТУП ЗА ПІДПИСКОЮ ====================== */
+
+  // Тренажер сам нічого не вирішує: він лише питає воркер, а той звіряється
+  // з Telegram. Підробити відповідь на боці телефона не вийде — підписані дані
+  // Telegram перевіряються вже на сервері.
+
+  var Gate = {
+    cfg: function () { return window.ANALYTICS || {}; },
+
+    // На своєму комп'ютері під час розробки перевірку не вмикаємо
+    isLocal: function () {
+      return location.protocol === "file:" ||
+             /^(localhost|127\.0\.0\.1|\[::1\])$/.test(location.hostname);
+    },
+
+    needed: function () {
+      return !!this.cfg().gateUrl && !this.isLocal();
+    },
+
+    show: function (state) {
+      var emoji = document.getElementById("gateEmoji");
+      var title = document.getElementById("gateTitle");
+      var text = document.getElementById("gateText");
+      var join = document.getElementById("gateJoin");
+      var check = document.getElementById("gateCheck");
+
+      if (state === "checking") {
+        emoji.textContent = "⏳";
+        title.textContent = "Хвилинку…";
+        text.textContent = "Перевіряю доступ";
+        join.hidden = true;
+        check.hidden = true;
+      } else if (state === "no-telegram") {
+        emoji.textContent = "📱";
+        title.textContent = "Відкрий через Telegram";
+        text.textContent = "Тренажер працює всередині Telegram — знайди бота й " +
+                           "натисни кнопку меню.";
+        join.hidden = true;
+        check.hidden = true;
+      } else {
+        emoji.textContent = "🔒";
+        title.textContent = "Залишився один крок";
+        text.textContent = "Тренажер відкритий для підписників каналу. " +
+                           "Підпишись — і одразу повертайся сюди.";
+        join.hidden = false;
+        check.hidden = false;
+        check.textContent = "Я підписався — перевірити";
+      }
+
+      stack = ["gate"];
+      show("gate");
+    },
+
+    open: function () {
+      var ch = this.cfg().channel;
+      if (!ch) return;
+      var link = "https://t.me/" + ch;
+      try {
+        if (tg && tg.openTelegramLink) { tg.openTelegramLink(link); return; }
+      } catch (e) { /* падаємо на звичайне відкриття */ }
+      window.open(link, "_blank");
+    },
+
+    check: function (again) {
+      var self = this;
+      var cfg = this.cfg();
+
+      if (!tg || !tg.initData) { this.show("no-telegram"); return; }
+      if (again) {
+        var btn = document.getElementById("gateCheck");
+        btn.disabled = true;
+        btn.textContent = "Перевіряю…";
+      }
+
+      fetch(cfg.gateUrl, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ initData: tg.initData })
+      })
+        .then(function (r) { return r.json(); })
+        .then(function (d) {
+          if (d && d.ok) { startApp(); return; }
+          self.show(d && d.reason === "no-telegram" ? "no-telegram" : "locked");
+          if (again) haptic("bad");
+        })
+        .catch(function () {
+          // Воркер не відповів — впускаємо. Зачинити тренажер для всіх через
+          // тимчасову аварію було б гірше, ніж пустити зайвого гостя.
+          startApp();
+        });
+    }
+  };
+
   // Повідомляємо воркеру, що застосунок відкрили. Потрібно лише для підрахунку
   // користувачів. Поза Telegram не працює — там немає підписаних даних.
   function pingStats() {
@@ -1519,16 +1621,27 @@
     } catch (e) { /* статистика ніколи не має заважати застосунку */ }
   }
 
+  function startApp() {
+    pingStats();
+    stack = ["home"];
+    renderHome();
+    show("home");
+  }
+
   function init() {
     if (tg) {
       try { tg.ready(); tg.expand(); } catch (e) { /* ігноруємо */ }
     }
-    pingStats();
     Store.load();
     Theme.apply();
     bind();
-    renderHome();
-    show("home");
+
+    if (Gate.needed()) {
+      Gate.show("checking");
+      Gate.check(false);
+    } else {
+      startApp();
+    }
   }
 
   if (document.readyState === "loading") {

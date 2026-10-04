@@ -14,7 +14,7 @@
        або файлів з даними збільште це число на одиницю: 3 → 4 → 5 …
        Більше ніде нічого правити не потрібно.                            */
 
-    var ASSET_VERSION = 3;
+    var ASSET_VERSION = 4;
 
     (function () {
       var v = "?v=" + ASSET_VERSION;
@@ -54,6 +54,17 @@
   <div class="topbar" id="topbar" hidden>
     <button class="back-btn" id="backBtn" type="button">‹ Назад</button>
   </div>
+
+  <!-- ЕКРАН: ДОСТУП ЗА ПІДПИСКОЮ -->
+  <section class="screen" data-screen="gate">
+    <div class="gate">
+      <div class="gate-emoji" id="gateEmoji">⏳</div>
+      <h2 id="gateTitle">Хвилинку…</h2>
+      <p class="gate-text" id="gateText">Перевіряю доступ</p>
+      <button class="btn btn-primary" id="gateJoin" type="button" hidden>Підписатися на канал</button>
+      <button class="btn btn-ghost" id="gateCheck" type="button" hidden>Я підписався — перевірити</button>
+    </div>
+  </section>
 
   <!-- ЕКРАН: ГОЛОВНИЙ -->
   <section class="screen" data-screen="home">

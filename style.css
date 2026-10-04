@@ -578,3 +578,22 @@ body {
 .seg.is-on { background: var(--accent); color: var(--accent-ink); font-weight: 600; }
 
 .setting-hint { color: var(--muted); font-size: 12.5px; line-height: 1.45; margin: 10px 2px 0; }
+
+/* ---------- ЕКРАН ДОСТУПУ ЗА ПІДПИСКОЮ ---------- */
+
+.screen[data-screen="gate"].is-active {
+  display: flex;
+  align-items: center;
+  min-height: calc(100dvh - 48px);
+}
+.gate { width: 100%; text-align: center; }
+.gate-emoji { font-size: 54px; line-height: 1; margin-bottom: 14px; }
+.gate h2 { font-size: 22px; margin: 0 0 8px; letter-spacing: -.02em; }
+.gate-text {
+  color: var(--muted);
+  font-size: 15px;
+  line-height: 1.5;
+  margin: 0 auto 24px;
+  max-width: 330px;
+}
+.gate .btn + .btn { margin-top: 10px; }

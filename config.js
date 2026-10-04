@@ -6,7 +6,15 @@
 //
 // Рахуються лише відкриття всередині Telegram, і в сховище потрапляє не номер
 // користувача, а його хеш.
+//
+// gateUrl — перевірка підписки на канал. Порожнє значення = тренажер
+// відкривається всім. Вимкнути перевірку можна і з боку воркера
+// (REQUIRE_SUBSCRIPTION = false) — тоді тут нічого міняти не треба.
+//
+// channel — назва каналу без «@», на нього веде кнопка «Підписатися».
 
 window.ANALYTICS = {
-  statsUrl: "https://nmt-bot.vlada333333338.workers.dev/hit"
+  statsUrl: "https://nmt-bot.vlada333333338.workers.dev/hit",
+  gateUrl:  "https://nmt-bot.vlada333333338.workers.dev/gate",
+  channel:  "NMT_tests200"
 };
