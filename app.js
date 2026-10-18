@@ -597,33 +597,173 @@
 
   /* ---------- НЕПРАВИЛЬНІ ДІЄСЛОВА ---------- */
 
-  // Відволікачі беремо з тієї самої групи: якщо правильна відповідь змінює
-  // голосну (sing–sang), то й решта варіантів мають її змінювати. Інакше
-  // відповідь видно за самим виглядом слова.
+  // Відволікачі з інших дієслів потрібні тільки там, де питання про
+  // переклад або про те, від якого слова ця форма. Для питань «яка друга
+  // форма» вони не годяться: чотири різні корені видно з першого погляду.
   function dslOthers(it, field, count) {
     var same = DSL.filter(function (x) { return x.g === it.g && x.v !== it.v; });
     return pickDistractors([same, DSL], it, field, count, function (x) { return x.g; });
   }
 
-  // Питання ставиться в один із п'яти боків — щоб дієслово вчилося з усіх
+  // Де в даних записано «burnt / burned», правильні обидві форми. Жодну з
+  // них не можна пропонувати як помилкову.
+  function dslTokens(s) {
+    return String(s || "").split("/").map(function (x) { return x.trim(); })
+      .filter(function (x) { return x; });
+  }
+
+  function dslRight(it) {
+    var out = {};
+    [it.v, it.p, it.pp].forEach(function (s) {
+      dslTokens(s).forEach(function (t) { out[t] = 1; });
+    });
+    return out;
+  }
+
+  function isVow(c) { return "aeiou".indexOf(c) >= 0; }
+
+  // Подвоєння кінцевої приголосної в односкладових: sit → sitting, cut → cutted
+  var DBL_LONG = { begin: 1, forget: 1, upset: 1, permit: 1, occur: 1, prefer: 1 };
+  function dblStem(v) {
+    var n = v.length;
+    if (n < 3) return v;
+    var a = v.charAt(n - 3), b = v.charAt(n - 2), c = v.charAt(n - 1);
+    if (isVow(a) || !isVow(b) || isVow(c) || "wxy".indexOf(c) >= 0) return v;
+    var vowels = v.replace(/[^aeiou]/g, "").length;
+    if (vowels > 1 && !DBL_LONG[v]) return v;
+    return v + c;
+  }
+
+  function dslIng(v) {
+    if (/ie$/.test(v)) return v.slice(0, -2) + "ying";
+    if (/e$/.test(v) && v.length > 2 && !isVow(v.charAt(v.length - 2))) return v.slice(0, -1) + "ing";
+    return dblStem(v) + "ing";
+  }
+
+  // «Правильна» форма, якої насправді немає: singed, teached, goed. Саме її
+  // пишуть ті, хто не вивчив дієслово, — тому вона й потрібна у варіантах.
+  function dslEd(v) {
+    if (v.length <= 2) return v + "ed";        // be → beed, go → goed
+    if (/e$/.test(v)) return v + "d";
+    if (/[^aeiou]y$/.test(v)) return v.slice(0, -1) + "ied";
+    return dblStem(v) + "ed";
+  }
+
+  function dslS(v) {
+    if (/(s|x|z|ch|sh|o)$/.test(v)) return v + "es";
+    if (/[^aeiou]y$/.test(v)) return v.slice(0, -1) + "ies";
+    return v + "s";
+  }
+
+  // Варіанти до питання про форму беремо з того самого дієслова: інша його
+  // форма, вигадана правильна на -ed, -ing, -s. Виходить чотири форми одного
+  // слова — так це й виглядає в тесті, і вгадати за виглядом неможливо.
+  function dslSameStem(it, right, count) {
+    var ok = dslRight(it), seen = {}, out = [];
+    var rightT = {};
+    dslTokens(right).forEach(function (t) { rightT[t] = 1; });
+
+    function tryAdd(w, made) {
+      if (out.length >= count || !w || seen[w] || w === right) return;
+      var toks = dslTokens(w), i;
+      for (i = 0; i < toks.length; i++) {
+        if (rightT[toks[i]]) return;          // збігається з правильною відповіддю
+        if (made && ok[toks[i]]) return;      // вигадана форма виявилась правильною
+      }
+      seen[w] = 1;
+      out.push(w);
+    }
+
+    // Порядок важливий: спершу справжня інша форма цього ж дієслова, далі
+    // вигадана правильна на -ed — саме ці два варіанти й плутають.
+    tryAdd(it.p, false);
+    tryAdd(it.pp, false);
+    tryAdd(dslEd(it.v), true);
+    tryAdd(dslIng(it.v), true);
+    tryAdd(it.v, false);
+    // Форма на -s корисна тільки там, де інших варіантів немає; у дієслів
+    // із двома правильними формами краще добрати щось із тієї ж групи.
+    if (!/ \/ /.test(it.p) && !/ \/ /.test(it.pp)) tryAdd(dslS(it.v), true);
+    return out;
+  }
+
+  function dslFormWrong(it, right, field, count) {
+    var out = dslSameStem(it, right, count);
+    if (out.length < count) {
+      // рідкість (burn, learn…): там -ed теж правильне, добираємо з групи
+      dslOthers(it, field, count).forEach(function (w) {
+        if (out.length < count && w && w !== right && out.indexOf(w) < 0) out.push(w);
+      });
+    }
+    return out;
+  }
+
+  // Головне питання розділу: усі три форми одразу. Дієслово вчать рядком —
+  // sing — sang — sung, — тому й перевіряти треба рядком, а не половинками.
+  function dslTripleQuestion(it, idx, note, full) {
+    // Там, де правильні обидві форми («burnt / burned»), рядок не годиться:
+    // серед варіантів неминуче вийшло б дві правильні відповіді.
+    if (/ \/ /.test(it.p) || / \/ /.test(it.pp)) return null;
+    var ok = dslRight(it);
+    var ed = dslEd(it.v);
+    if (ok[ed]) ed = "";
+    var ing = dslIng(it.v);
+    var right = it.v + " — " + it.p + " — " + it.pp;
+    var cand = [], seen = {};
+    function add(a, b) {
+      if (!a || !b) return;
+      var s2 = it.v + " — " + a + " — " + b;
+      if (s2 === right || seen[s2]) return;
+      seen[s2] = 1;
+      cand.push(s2);
+    }
+    add(it.pp, it.p);      // форми переставлені місцями
+    add(it.p, it.p);
+    add(it.pp, it.pp);
+    add(ed, ed);           // «правильний» варіант, якого не існує
+    add(it.p, ed);
+    add(ed, it.pp);
+    add(it.v, it.pp);
+    add(it.p, it.v);
+    add(ing, it.pp);
+    add(it.p, ing);
+
+    // Порядок не перемішуємо: сильні варіанти стоять першими, а рядки з
+    // -ing беруться лише тоді, коли інших не лишилось.
+    var o = buildOpts(right, cand);
+    if (!o) return null;
+    return {
+      key: idx, label: "Усі три форми",
+      prompt: esc(it.v), note: it.t,
+      options: o,
+      answerHtml: "<b>" + full + "</b>",
+      reveal: note
+    };
+  }
+
+  // Питання ставиться в один із шести боків — щоб дієслово вчилося з усіх
   // сторін, а не лише «інфінітив → друга форма».
-  function makeDslQuestion(idx) {
+  function makeDslQuestion(idx, depth, force) {
     var it = DSL[idx];
-    var kind = Math.floor(Math.random() * 5);
     var note = it.n ? esc(it.n) : "";
     var full = esc(it.v) + " — " + esc(it.p) + " — " + esc(it.pp);
+    var d = depth || 0;
 
-    // 0: інфінітив → друга форма. Перший відволікач — третя форма того самого
-    // дієслова: саме її найчастіше плутають.
+    // Основне питання — рядок із трьох форм. Окремо про другу чи третю
+    // питаємо лише там, де рядок неможливий (burn, learn… — у них правильні
+    // обидві форми).
+    var r = Math.random();
+    var kind = r < 0.6 ? 2 : r < 0.74 ? 3 : r < 0.87 ? 4 : 5;
+    if (force === 0 || force === 1) kind = force;
+    if (d > 6) kind = 3;   // захист від нескінченного перебору
+
+    // 0: інфінітив → друга форма
     if (kind === 0) {
-      var w0 = [];
-      if (it.pp !== it.p) w0.push(it.pp);
-      w0 = w0.concat(dslOthers(it, "p", 3));
-      var o0 = buildOpts(it.p, w0);
-      if (!o0) return makeDslQuestion(idx);
+      var o0 = buildOpts(it.p, dslFormWrong(it, it.p, "p", 3));
+      if (!o0) return makeDslQuestion(idx, d + 1, force);
       return {
         key: idx, label: "Друга форма (Past Simple)",
-        prompt: esc(it.v), options: o0,
+        prompt: esc(it.v), note: it.t, options: o0,
         answerHtml: "<b>" + full + "</b>",
         reveal: note
       };
@@ -631,50 +771,55 @@
 
     // 1: інфінітив → третя форма
     if (kind === 1) {
-      var w1 = [];
-      if (it.p !== it.pp) w1.push(it.p);
-      w1 = w1.concat(dslOthers(it, "pp", 3));
-      var o1 = buildOpts(it.pp, w1);
-      if (!o1) return makeDslQuestion(idx);
+      var o1 = buildOpts(it.pp, dslFormWrong(it, it.pp, "pp", 3));
+      if (!o1) return makeDslQuestion(idx, d + 1, force);
       return {
         key: idx, label: "Третя форма (Past Participle)",
-        prompt: esc(it.v), options: o1,
+        prompt: esc(it.v), note: it.t, options: o1,
         answerHtml: "<b>" + full + "</b>",
         reveal: note
       };
     }
 
-    // 2: форма → інфінітив
+    // 2: усі три форми разом
     if (kind === 2) {
+      var o2 = dslTripleQuestion(it, idx, note, full);
+      if (o2) return o2;
+      // дієслово з двома правильними формами — питаємо про одну з них
+      return makeDslQuestion(idx, d + 1, Math.random() < 0.5 ? 0 : 1);
+    }
+
+    // 3: форма → інфінітив
+    if (kind === 3) {
       var shown = Math.random() < 0.5 ? it.p : it.pp;
-      var o2 = buildOpts(it.v, dslOthers(it, "v", 3));
-      if (!o2) return makeDslQuestion(idx);
+      var o3 = buildOpts(it.v, dslOthers(it, "v", 3));
+      if (!o3) return makeDslQuestion(idx, d + 1);
       return {
         key: idx, label: "Від якого дієслова ця форма?",
-        prompt: esc(shown), options: o2,
+        prompt: esc(shown), options: o3,
         answerHtml: "<b>" + full + "</b>",
         reveal: note
       };
     }
 
-    // 3: слово → переклад
-    if (kind === 3) {
-      var o3 = buildOpts(it.t, pickDistractors(DSL, it, "t", 3));
-      if (!o3) return makeDslQuestion(idx);
+    // 4: слово → переклад
+    if (kind === 4) {
+      var o4 = buildOpts(it.t, pickDistractors(DSL, it, "t", 3));
+      if (!o4) return makeDslQuestion(idx, d + 1);
       return {
         key: idx, label: "Як перекладається?",
-        prompt: esc(it.v), options: o3,
+        prompt: esc(it.v), options: o4,
         answerHtml: "<b>" + full + "</b> — " + esc(it.t),
         reveal: note
       };
     }
 
-    // 4: переклад → слово
-    var o4 = buildOpts(it.v, pickDistractors(DSL, it, "v", 3));
-    if (!o4) return makeDslQuestion(idx);
+    // 5: переклад → слово
+    var o5 = buildOpts(it.v, pickDistractors(DSL, it, "v", 3));
+    if (!o5) return makeDslQuestion(idx, d + 1);
     return {
       key: idx, label: "Яке це дієслово?",
-      prompt: esc(it.t), options: o4,
+      prompt: esc(it.t), options: o5,
       answerHtml: "<b>" + full + "</b>",
       reveal: note
     };
