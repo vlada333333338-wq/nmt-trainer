@@ -1,0 +1,19 @@
+{
+  "_коментар": "Збільште v на одиницю після кожного оновлення файлів. Новий файл з даними допишіть у files — перед app.js.",
+  "v": 6,
+  "files": [
+    "config.js",
+    "tex.js",
+    "nagolosy.js",
+    "frazeologizmy.js",
+    "daty.js",
+    "personalii.js",
+    "pamyatky.js",
+    "formuly.js",
+    "grafiky.js",
+    "praktyka.js",
+    "diyeslova.js",
+    "gramatyka.js",
+    "app.js"
+  ]
+}

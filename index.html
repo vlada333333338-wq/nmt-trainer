@@ -6,27 +6,29 @@
   <title>Тренажер НМТ</title>
   <script src="https://telegram.org/js/telegram-web-app.js"></script>
 
+  <!-- Найперші кольори, щоб під час завантаження не блимав білий екран -->
+  <style>
+    html, body { margin: 0; background: #12131a; color: #f2f3f7; }
+    .screen, [hidden] { display: none; }
+  </style>
+
   <script>
-    /* ВЕРСІЯ ФАЙЛІВ — ЄДИНЕ ЧИСЛО, ЯКЕ ТРЕБА ЗМІНИТИ.
+    /* ЦЕЙ ФАЙЛ БІЛЬШЕ МІНЯТИ НЕ ТРЕБА.
 
-       Telegram і браузери надовго запамʼятовують файли застосунку. Щоб
-       користувачі побачили оновлення, після кожної зміни style.css, app.js
-       або файлів з даними збільште це число на одиницю: 3 → 4 → 5 …
-       Більше ніде нічого правити не потрібно.                            */
+       Номер версії й перелік файлів живуть окремо — у version.json.
+       Сторінка питає його за адресою з випадковим хвостиком, яку Telegram
+       не може запам’ятати в принципі, бо вона щоразу інша. Тому оновлення
+       доходять одразу, без правок у BotFather і Cloudflare.
 
-    var ASSET_VERSION = 5;
+       Щоб випустити оновлення, збільште "v" у version.json на одиницю.
+       Додали новий файл з даними — допишіть його туди ж у "files".
 
-    (function () {
-      var v = "?v=" + ASSET_VERSION;
+       Якщо version.json раптом не відповість (немає мережі), сторінка
+       візьме запасні значення нижче і все одно запрацює.                 */
 
-      var css = document.createElement("link");
-      css.rel = "stylesheet";
-      css.href = "style.css" + v;
-      document.head.appendChild(css);
-
-      // Порядок важливий: дані мають завантажитися раніше за логіку.
-      // async = false змушує браузер виконувати файли саме в цьому порядку.
-      [
+    var FALLBACK = {
+      v: 6,
+      files: [
         "config.js",
         "tex.js",
         "nagolosy.js",
@@ -40,12 +42,56 @@
         "diyeslova.js",
         "gramatyka.js",
         "app.js"
-      ].forEach(function (name) {
-        var s = document.createElement("script");
-        s.src = name + v;
-        s.async = false;
-        document.head.appendChild(s);
-      });
+      ]
+    };
+
+    (function () {
+      var started = false;
+
+      function boot(cfg) {
+        if (started) return;
+        started = true;
+
+        var v = "?v=" + cfg.v;
+        var files = (cfg.files && cfg.files.length) ? cfg.files : FALLBACK.files;
+
+        var css = document.createElement("link");
+        css.rel = "stylesheet";
+        css.href = "style.css" + v;
+        document.head.appendChild(css);
+
+        // Порядок важливий: дані мають завантажитися раніше за логіку.
+        // async = false змушує браузер виконувати файли саме в цьому порядку.
+        files.forEach(function (name) {
+          var sc = document.createElement("script");
+          sc.src = name + v;
+          sc.async = false;
+          document.head.appendChild(sc);
+        });
+      }
+
+      // Якщо відповіді немає за півтори секунди — не змушуємо чекати
+      var timer = setTimeout(function () { boot(FALLBACK); }, 1500);
+
+      try {
+        var x = new XMLHttpRequest();
+        var nonce = Date.now() + "-" + Math.random().toString(36).slice(2);
+        x.open("GET", "version.json?t=" + nonce, true);
+        x.onload = function () {
+          clearTimeout(timer);
+          var cfg = FALLBACK;
+          try {
+            var got = JSON.parse(x.responseText);
+            if (got && got.v) cfg = got;
+          } catch (e) { /* зіпсований файл — беремо запасні значення */ }
+          boot(cfg);
+        };
+        x.onerror = function () { clearTimeout(timer); boot(FALLBACK); };
+        x.send();
+      } catch (e) {
+        clearTimeout(timer);
+        boot(FALLBACK);
+      }
     })();
   </script>
 </head>
