@@ -41,6 +41,7 @@
         "praktyka.js",
         "diyeslova.js",
         "gramatyka.js",
+        "vyrazy.js",
         "app.js"
       ]
     };
@@ -156,7 +157,7 @@
         <span class="tile-icon">🇬🇧</span>
         <span class="tile-text">
           <span class="tile-title">Англійська мова</span>
-          <span class="tile-sub">Неправильні дієслова · Граматика</span>
+          <span class="tile-sub">Дієслова · Граматика · Вирази</span>
         </span>
         <span class="tile-arrow">›</span>
       </button>
@@ -604,7 +605,119 @@
         </span>
         <span class="tile-arrow">›</span>
       </button>
+      <button class="tile" data-go="phrasal">
+        <span class="tile-icon">🔀</span>
+        <span class="tile-text">
+          <span class="tile-title">Phrasal verbs</span>
+          <span class="tile-sub" id="cntPhr"></span>
+        </span>
+        <span class="tile-arrow">›</span>
+      </button>
+      <button class="tile" data-go="idioms">
+        <span class="tile-icon">💬</span>
+        <span class="tile-text">
+          <span class="tile-title">Ідіоми та сталі вирази</span>
+          <span class="tile-sub" id="cntIdi"></span>
+        </span>
+        <span class="tile-arrow">›</span>
+      </button>
     </nav>
+  </section>
+
+  <!-- ЕКРАН: PHRASAL VERBS -->
+  <section class="screen" data-screen="phrasal">
+    <header class="page-head">
+      <h2>Phrasal verbs</h2>
+      <p class="page-sub">Значення, вираз за значенням і пропуск у реченні</p>
+    </header>
+    <nav class="tiles">
+      <button class="tile" data-quiz="phr-random">
+        <span class="tile-icon">🎯</span>
+        <span class="tile-text">
+          <span class="tile-title">Звичайний режим</span>
+          <span class="tile-sub">Випадкові вирази, без кінця</span>
+        </span>
+      </button>
+      <button class="tile" data-quiz="phr-round">
+        <span class="tile-icon">⏱️</span>
+        <span class="tile-text">
+          <span class="tile-title">Раунд на 10 питань</span>
+          <span class="tile-sub">Із результатом у кінці</span>
+        </span>
+      </button>
+      <button class="tile" data-quiz="phr-mistakes">
+        <span class="tile-icon">🔁</span>
+        <span class="tile-text">
+          <span class="tile-title">Робота над помилками</span>
+          <span class="tile-sub" id="cntPhrMistakes"></span>
+        </span>
+      </button>
+      <button class="tile tile-muted" data-go="phr-list">
+        <span class="tile-icon">📋</span>
+        <span class="tile-text">
+          <span class="tile-title">Шпаргалка</span>
+          <span class="tile-sub">Усі вирази з прикладами</span>
+        </span>
+        <span class="tile-arrow">›</span>
+      </button>
+    </nav>
+  </section>
+
+  <!-- ЕКРАН: СПИСОК PHRASAL VERBS -->
+  <section class="screen" data-screen="phr-list">
+    <header class="page-head">
+      <h2>Phrasal verbs</h2>
+      <input type="search" id="phrSearch" class="search" placeholder="Пошук за виразом або значенням…" autocomplete="off">
+    </header>
+    <div class="list" id="phrList"></div>
+  </section>
+
+  <!-- ЕКРАН: ІДІОМИ -->
+  <section class="screen" data-screen="idioms">
+    <header class="page-head">
+      <h2>Ідіоми та сталі вирази</h2>
+      <p class="page-sub">Те, що не перекладається дослівно</p>
+    </header>
+    <nav class="tiles">
+      <button class="tile" data-quiz="idi-random">
+        <span class="tile-icon">🎯</span>
+        <span class="tile-text">
+          <span class="tile-title">Звичайний режим</span>
+          <span class="tile-sub">Випадкові вирази, без кінця</span>
+        </span>
+      </button>
+      <button class="tile" data-quiz="idi-round">
+        <span class="tile-icon">⏱️</span>
+        <span class="tile-text">
+          <span class="tile-title">Раунд на 10 питань</span>
+          <span class="tile-sub">Із результатом у кінці</span>
+        </span>
+      </button>
+      <button class="tile" data-quiz="idi-mistakes">
+        <span class="tile-icon">🔁</span>
+        <span class="tile-text">
+          <span class="tile-title">Робота над помилками</span>
+          <span class="tile-sub" id="cntIdiMistakes"></span>
+        </span>
+      </button>
+      <button class="tile tile-muted" data-go="idi-list">
+        <span class="tile-icon">📋</span>
+        <span class="tile-text">
+          <span class="tile-title">Шпаргалка</span>
+          <span class="tile-sub">Усі вирази зі значеннями</span>
+        </span>
+        <span class="tile-arrow">›</span>
+      </button>
+    </nav>
+  </section>
+
+  <!-- ЕКРАН: СПИСОК ІДІОМ -->
+  <section class="screen" data-screen="idi-list">
+    <header class="page-head">
+      <h2>Ідіоми та сталі вирази</h2>
+      <input type="search" id="idiSearch" class="search" placeholder="Пошук…" autocomplete="off">
+    </header>
+    <div class="list" id="idiList"></div>
   </section>
 
   <!-- ЕКРАН: НЕПРАВИЛЬНІ ДІЄСЛОВА -->

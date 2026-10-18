@@ -20,6 +20,8 @@
   var DSL      = window.DATA_DIYESLOVA  || [];
   var DSL_G    = window.DATA_DIYESLOVA_GRUPY || [];
   var GRAM     = window.ENG_GRAMATYKA   || null;
+  var PHR      = window.DATA_PHRASAL    || [];
+  var IDI      = window.DATA_IDIOMS     || [];
   var TX       = window.TeX || { render: function (s) { return esc(s); } };
 
   // Дати розкладаємо в один плоский список, щоб мати наскрізні номери
@@ -41,13 +43,13 @@
     //   letters — завжди літери
     //   words   — завжди ціле слово з виділеною голосною
     opts: { nagMode: "auto" },
-    mistakes: { nag: [], frz: [], dat: [], per: [], pam: [], fml: [], eng: [] },
+    mistakes: { nag: [], frz: [], dat: [], per: [], pam: [], fml: [], eng: [], phr: [], idi: [] },
     stats: { answered: 0, correct: 0, bestStreak: 0 }
   };
 
   // Хмара Telegram дозволяє максимум 4096 символів на один ключ, тому прогрес
   // розкладаємо по окремих ключах: налаштування + список помилок кожного розділу.
-  var CLOUD_BUCKETS = ["nag", "frz", "dat", "per", "pam", "fml", "eng"];
+  var CLOUD_BUCKETS = ["nag", "frz", "dat", "per", "pam", "fml", "eng", "phr", "idi"];
   var MAX_MISTAKES = 300;   // із запасом уміщається в 4096 символів
 
   var Store = {
@@ -690,6 +692,85 @@
     return out.length === 4 ? shuffle(out) : null;
   }
 
+  /* ---------- ФРАЗОВІ ДІЄСЛОВА ---------- */
+
+  // Базове дієслово — ось де справжня плутанина. look after, look for,
+  // look up відрізняються лише часткою, і саме їх ставлять поруч на іспиті.
+  function phrBase(x) { return x.v; }
+
+  function makePhrasalQuestion(idx) {
+    var it = PHR[idx];
+    var same = PHR.filter(function (x) { return x.v === it.v && x.p !== it.p; });
+    var kind = Math.floor(Math.random() * 3);
+    var full = esc(it.v + " " + it.p);
+
+    // 0: вираз → значення
+    if (kind === 0) {
+      var o0 = buildOpts(it.m, pickDistractors([same, PHR], it, "m", 3, phrBase));
+      if (!o0) return null;
+      return {
+        key: idx, label: "Що означає вираз?",
+        prompt: full, options: o0,
+        answerHtml: "<b>" + full + "</b> — " + esc(it.m),
+        reveal: esc(it.s.replace("___", it.p))
+      };
+    }
+
+    // 1: значення → вираз
+    if (kind === 1) {
+      var o1 = buildOpts(it.v + " " + it.p,
+        pickDistractors([same, PHR], it, "p", 3, phrBase).map(function (pp) {
+          var found = PHR.filter(function (x) { return x.p === pp; })[0];
+          return found ? found.v + " " + found.p : null;
+        }));
+      if (!o1) return null;
+      return {
+        key: idx, label: "Який вираз має таке значення?",
+        text: it.m, options: o1,
+        answerHtml: "<b>" + full + "</b>",
+        reveal: esc(it.s.replace("___", it.p))
+      };
+    }
+
+    // 2: пропуск у реченні — обери частку. Саме цей формат і на іспиті.
+    var o2 = buildOpts(it.p, pickDistractors([same, PHR], it, "p", 3, phrBase));
+    if (!o2) return null;
+    return {
+      key: idx, label: "Яке слово пропущено?",
+      text: it.s, options: o2,
+      answerHtml: "<b>" + full + "</b> — " + esc(it.m),
+      reveal: esc(it.s.replace("___", it.p))
+    };
+  }
+
+  /* ---------- ІДІОМИ ТА СТАЛІ ВИРАЗИ ---------- */
+
+  // Довжина тлумачення: щоб серед трьох коротких не бовванів один довгий
+  function idiLength(x) {
+    var n = x.m.length;
+    return n < 15 ? "коротке" : n < 28 ? "середнє" : "довге";
+  }
+
+  function makeIdiomQuestion(idx) {
+    var it = IDI[idx];
+    if (Math.random() < 0.6) {
+      var o0 = buildOpts(it.m, pickDistractors(IDI, it, "m", 3, idiLength));
+      if (!o0) return null;
+      return {
+        key: idx, label: "Що означає вираз?",
+        prompt: esc(it.e), options: o0,
+        answerHtml: "<b>" + esc(it.e) + "</b> — " + esc(it.m)
+      };
+    }
+    var o1 = buildOpts(it.e, pickDistractors(IDI, it, "e", 3));
+    if (!o1) return null;
+    return {
+      key: idx, label: "Який вираз має таке значення?",
+      text: it.m, options: o1,
+      answerHtml: "<b>" + esc(it.e) + "</b>"
+    };
+  }
+
   /* ---------- ГРАМАТИКА АНГЛІЙСЬКОЇ ---------- */
 
   function gramGens(topicId) {
@@ -1061,6 +1142,11 @@
       DSL.length + " " + plural(DSL.length, "дієслово", "дієслова", "дієслів") +
       " · " + DSL_G.length + " " + plural(DSL_G.length, "група", "групи", "груп");
 
+    document.getElementById("cntPhr").textContent =
+      PHR.length + " " + plural(PHR.length, "вираз", "вирази", "виразів");
+    document.getElementById("cntIdi").textContent =
+      IDI.length + " " + plural(IDI.length, "вираз", "вирази", "виразів");
+
     var M = Store.state.mistakes;
     setMistakeLabel("cntNagMistakes", M.nag.length, "слово", "слова", "слів");
     setMistakeLabel("cntFrzMistakes", M.frz.length, "вираз", "вирази", "виразів");
@@ -1068,6 +1154,8 @@
     setMistakeLabel("cntPamMistakes", M.pam.length, "пам'ятка", "пам'ятки", "пам'яток");
     setMistakeLabel("cntFmlMistakes", (M.fml || []).length, "формула", "формули", "формул");
     setMistakeLabel("cntDslMistakes", (M.eng || []).length, "дієслово", "дієслова", "дієслів");
+    setMistakeLabel("cntPhrMistakes", (M.phr || []).length, "вираз", "вирази", "виразів");
+    setMistakeLabel("cntIdiMistakes", (M.idi || []).length, "вираз", "вирази", "виразів");
   }
 
   function setMistakeLabel(id, n, one, few, many) {
@@ -1349,6 +1437,48 @@
     }
   }
 
+  function renderPhrList(filter) {
+    var box = document.getElementById("phrList");
+    var f = (filter || "").trim().toLowerCase();
+    box.innerHTML = "";
+    var byVerb = {}, order = [];
+    PHR.forEach(function (it) {
+      if (f && (it.v + " " + it.p).toLowerCase().indexOf(f) < 0 &&
+          it.m.toLowerCase().indexOf(f) < 0) return;
+      if (!byVerb[it.v]) { byVerb[it.v] = []; order.push(it.v); }
+      byVerb[it.v].push(it);
+    });
+    order.forEach(function (v) {
+      var h = document.createElement("p");
+      h.className = "list-head";
+      h.textContent = v;
+      box.appendChild(h);
+      byVerb[v].forEach(function (it) {
+        var d = document.createElement("div");
+        d.className = "list-item";
+        d.innerHTML = "<b>" + esc(it.v + " " + it.p) + "</b><span>" + esc(it.m) + "</span>" +
+          '<span class="dsl-note">' + esc(it.s.replace("___", it.p)) + "</span>";
+        box.appendChild(d);
+      });
+    });
+    if (!box.children.length) box.innerHTML = '<p class="page-sub">Нічого не знайшлося.</p>';
+  }
+
+  function renderIdiList(filter) {
+    var box = document.getElementById("idiList");
+    var f = (filter || "").trim().toLowerCase();
+    box.innerHTML = "";
+    IDI.filter(function (it) {
+      return !f || it.e.toLowerCase().indexOf(f) >= 0 || it.m.toLowerCase().indexOf(f) >= 0;
+    }).forEach(function (it) {
+      var d = document.createElement("div");
+      d.className = "list-item";
+      d.innerHTML = "<b>" + esc(it.e) + "</b><span>" + esc(it.m) + "</span>";
+      box.appendChild(d);
+    });
+    if (!box.children.length) box.innerHTML = '<p class="page-sub">Нічого не знайшлося.</p>';
+  }
+
   function renderGramTopics() {
     var box = document.getElementById("gramTopics");
     box.innerHTML = "";
@@ -1613,6 +1743,8 @@
         if (target === "dsl-grupy") renderDslGroups();
         if (target === "dsl-list") renderDslList("");
         if (target === "gramatyka") renderGramTopics();
+        if (target === "phr-list") renderPhrList("");
+        if (target === "idi-list") renderIdiList("");
         if (target === "settings") renderSettings();
         go(target);
       });
@@ -1676,6 +1808,21 @@
             if (!Store.state.mistakes.eng.length) { alert("Помилок поки немає — спершу потренуйся."); return; }
             startQuiz({ mode: "eng", make: makeDslQuestion, pool: Store.state.mistakes.eng.slice() }); break;
 
+          case "phr-random":
+            startQuiz({ mode: "phr", make: makePhrasalQuestion, pool: all(PHR), endless: true }); break;
+          case "phr-round":
+            startQuiz({ mode: "phr", make: makePhrasalQuestion, pool: all(PHR), limit: 10 }); break;
+          case "phr-mistakes":
+            if (!Store.state.mistakes.phr.length) { alert("Помилок поки немає — спершу потренуйся."); return; }
+            startQuiz({ mode: "phr", make: makePhrasalQuestion, pool: Store.state.mistakes.phr.slice() }); break;
+          case "idi-random":
+            startQuiz({ mode: "idi", make: makeIdiomQuestion, pool: all(IDI), endless: true }); break;
+          case "idi-round":
+            startQuiz({ mode: "idi", make: makeIdiomQuestion, pool: all(IDI), limit: 10 }); break;
+          case "idi-mistakes":
+            if (!Store.state.mistakes.idi.length) { alert("Помилок поки немає — спершу потренуйся."); return; }
+            startQuiz({ mode: "idi", make: makeIdiomQuestion, pool: Store.state.mistakes.idi.slice() }); break;
+
           case "gph-round":
             startQuiz({
               mode: "gph", make: makeGraphQuestion,
@@ -1724,6 +1871,12 @@
     });
     document.getElementById("dslSearch").addEventListener("input", function (e) {
       renderDslList(e.target.value);
+    });
+    document.getElementById("phrSearch").addEventListener("input", function (e) {
+      renderPhrList(e.target.value);
+    });
+    document.getElementById("idiSearch").addEventListener("input", function (e) {
+      renderIdiList(e.target.value);
     });
 
     bindWheels();
