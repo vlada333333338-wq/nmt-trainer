@@ -17,6 +17,9 @@
   var FML_T    = window.DATA_FORMULY_TEMY || [];
   var GRAPHS   = window.MATH_GRAPHS     || null;
   var PRACTICE = window.MATH_PRACTICE   || null;
+  var DSL      = window.DATA_DIYESLOVA  || [];
+  var DSL_G    = window.DATA_DIYESLOVA_GRUPY || [];
+  var GRAM     = window.ENG_GRAMATYKA   || null;
   var TX       = window.TeX || { render: function (s) { return esc(s); } };
 
   // Дати розкладаємо в один плоский список, щоб мати наскрізні номери
@@ -38,13 +41,13 @@
     //   letters — завжди літери
     //   words   — завжди ціле слово з виділеною голосною
     opts: { nagMode: "auto" },
-    mistakes: { nag: [], frz: [], dat: [], per: [], pam: [], fml: [] },
+    mistakes: { nag: [], frz: [], dat: [], per: [], pam: [], fml: [], eng: [] },
     stats: { answered: 0, correct: 0, bestStreak: 0 }
   };
 
   // Хмара Telegram дозволяє максимум 4096 символів на один ключ, тому прогрес
   // розкладаємо по окремих ключах: налаштування + список помилок кожного розділу.
-  var CLOUD_BUCKETS = ["nag", "frz", "dat", "per", "pam", "fml"];
+  var CLOUD_BUCKETS = ["nag", "frz", "dat", "per", "pam", "fml", "eng"];
   var MAX_MISTAKES = 300;   // із запасом уміщається в 4096 символів
 
   var Store = {
@@ -590,6 +593,121 @@
     return "";
   }
 
+  /* ---------- НЕПРАВИЛЬНІ ДІЄСЛОВА ---------- */
+
+  // Відволікачі беремо з тієї самої групи: якщо правильна відповідь змінює
+  // голосну (sing–sang), то й решта варіантів мають її змінювати. Інакше
+  // відповідь видно за самим виглядом слова.
+  function dslOthers(it, field, count) {
+    var same = DSL.filter(function (x) { return x.g === it.g && x.v !== it.v; });
+    return pickDistractors([same, DSL], it, field, count, function (x) { return x.g; });
+  }
+
+  // Питання ставиться в один із п'яти боків — щоб дієслово вчилося з усіх
+  // сторін, а не лише «інфінітив → друга форма».
+  function makeDslQuestion(idx) {
+    var it = DSL[idx];
+    var kind = Math.floor(Math.random() * 5);
+    var note = it.n ? esc(it.n) : "";
+    var full = esc(it.v) + " — " + esc(it.p) + " — " + esc(it.pp);
+
+    // 0: інфінітив → друга форма. Перший відволікач — третя форма того самого
+    // дієслова: саме її найчастіше плутають.
+    if (kind === 0) {
+      var w0 = [];
+      if (it.pp !== it.p) w0.push(it.pp);
+      w0 = w0.concat(dslOthers(it, "p", 3));
+      var o0 = buildOpts(it.p, w0);
+      if (!o0) return makeDslQuestion(idx);
+      return {
+        key: idx, label: "Друга форма (Past Simple)",
+        prompt: esc(it.v), options: o0,
+        answerHtml: "<b>" + full + "</b>",
+        reveal: note
+      };
+    }
+
+    // 1: інфінітив → третя форма
+    if (kind === 1) {
+      var w1 = [];
+      if (it.p !== it.pp) w1.push(it.p);
+      w1 = w1.concat(dslOthers(it, "pp", 3));
+      var o1 = buildOpts(it.pp, w1);
+      if (!o1) return makeDslQuestion(idx);
+      return {
+        key: idx, label: "Третя форма (Past Participle)",
+        prompt: esc(it.v), options: o1,
+        answerHtml: "<b>" + full + "</b>",
+        reveal: note
+      };
+    }
+
+    // 2: форма → інфінітив
+    if (kind === 2) {
+      var shown = Math.random() < 0.5 ? it.p : it.pp;
+      var o2 = buildOpts(it.v, dslOthers(it, "v", 3));
+      if (!o2) return makeDslQuestion(idx);
+      return {
+        key: idx, label: "Від якого дієслова ця форма?",
+        prompt: esc(shown), options: o2,
+        answerHtml: "<b>" + full + "</b>",
+        reveal: note
+      };
+    }
+
+    // 3: слово → переклад
+    if (kind === 3) {
+      var o3 = buildOpts(it.t, pickDistractors(DSL, it, "t", 3));
+      if (!o3) return makeDslQuestion(idx);
+      return {
+        key: idx, label: "Як перекладається?",
+        prompt: esc(it.v), options: o3,
+        answerHtml: "<b>" + full + "</b> — " + esc(it.t),
+        reveal: note
+      };
+    }
+
+    // 4: переклад → слово
+    var o4 = buildOpts(it.v, pickDistractors(DSL, it, "v", 3));
+    if (!o4) return makeDslQuestion(idx);
+    return {
+      key: idx, label: "Яке це дієслово?",
+      prompt: esc(it.t), options: o4,
+      answerHtml: "<b>" + full + "</b>",
+      reveal: note
+    };
+  }
+
+  // Складає набір варіантів; якщо чесних відволікачів забракло — повертає null
+  function buildOpts(right, wrong) {
+    var seen = {}, out = [{ text: right, correct: true }];
+    seen[right] = 1;
+    wrong.forEach(function (w) {
+      if (out.length >= 4 || !w || seen[w]) return;
+      seen[w] = 1;
+      out.push({ text: w, correct: false });
+    });
+    return out.length === 4 ? shuffle(out) : null;
+  }
+
+  /* ---------- ГРАМАТИКА АНГЛІЙСЬКОЇ ---------- */
+
+  function gramGens(topicId) {
+    if (!GRAM) return [];
+    if (topicId === "all") return GRAM.all;
+    for (var i = 0; i < GRAM.topics.length; i++) {
+      if (GRAM.topics[i].id === topicId) return GRAM.topics[i].gens;
+    }
+    return GRAM.all;
+  }
+
+  function makeGramQuestion(topicId) {
+    var q = GRAM ? GRAM.makeFrom(gramGens(topicId)) : null;
+    return q || { key: "g", label: "Питання не склалося", text: "Спробуй ще раз.",
+                  options: [{ text: "Далі", correct: true }, { text: "—", correct: false },
+                            { text: "—", correct: false }, { text: "—", correct: false }] };
+  }
+
   /* ---------- ГРАФІКИ І ПРАКТИКА ---------- */
 
   function makeGraphQuestion(kind) {
@@ -939,12 +1057,17 @@
       FORMULY.length + " " + plural(FORMULY.length, "формула", "формули", "формул") +
       " · " + FML_T.length + " " + plural(FML_T.length, "тема", "теми", "тем");
 
+    document.getElementById("cntDsl").textContent =
+      DSL.length + " " + plural(DSL.length, "дієслово", "дієслова", "дієслів") +
+      " · " + DSL_G.length + " " + plural(DSL_G.length, "група", "групи", "груп");
+
     var M = Store.state.mistakes;
     setMistakeLabel("cntNagMistakes", M.nag.length, "слово", "слова", "слів");
     setMistakeLabel("cntFrzMistakes", M.frz.length, "вираз", "вирази", "виразів");
     setMistakeLabel("cntPerMistakes", M.per.length, "постать", "постаті", "постатей");
     setMistakeLabel("cntPamMistakes", M.pam.length, "пам'ятка", "пам'ятки", "пам'яток");
     setMistakeLabel("cntFmlMistakes", (M.fml || []).length, "формула", "формули", "формул");
+    setMistakeLabel("cntDslMistakes", (M.eng || []).length, "дієслово", "дієслова", "дієслів");
   }
 
   function setMistakeLabel(id, n, one, few, many) {
@@ -1171,6 +1294,110 @@
     box.appendChild(round);
   }
 
+  function renderDslGroups() {
+    var box = document.getElementById("dslGroups");
+    box.innerHTML = "";
+    DSL_G.forEach(function (g) {
+      var keys = [];
+      DSL.forEach(function (it, i) { if (it.g === g.id) keys.push(i); });
+      if (!keys.length) return;
+      var b = document.createElement("button");
+      b.className = "tile";
+      b.type = "button";
+      b.innerHTML =
+        '<span class="tile-icon">' + g.icon + '</span><span class="tile-text">' +
+        '<span class="tile-title">' + esc(g.title) + '</span>' +
+        '<span class="tile-sub">' + esc(g.id) + " · " + keys.length + " " +
+        plural(keys.length, "дієслово", "дієслова", "дієслів") + '</span></span>';
+      b.addEventListener("click", function () {
+        haptic("tap");
+        startQuiz({ mode: "eng", make: makeDslQuestion, pool: keys, endless: true });
+      });
+      box.appendChild(b);
+    });
+  }
+
+  function renderDslList(filter) {
+    var box = document.getElementById("dslList");
+    var f = (filter || "").trim().toLowerCase();
+    box.innerHTML = "";
+    DSL_G.forEach(function (g) {
+      var items = DSL.filter(function (it) {
+        return it.g === g.id && (!f ||
+          it.v.toLowerCase().indexOf(f) >= 0 ||
+          it.p.toLowerCase().indexOf(f) >= 0 ||
+          it.pp.toLowerCase().indexOf(f) >= 0 ||
+          it.t.toLowerCase().indexOf(f) >= 0);
+      });
+      if (!items.length) return;
+      var h = document.createElement("p");
+      h.className = "list-head";
+      h.textContent = g.icon + " " + g.title;
+      box.appendChild(h);
+      items.forEach(function (it) {
+        var d = document.createElement("div");
+        d.className = "list-item";
+        d.innerHTML =
+          '<b class="dsl-forms">' + esc(it.v) + " · " + esc(it.p) + " · " + esc(it.pp) + "</b>" +
+          "<span>" + esc(it.t) + "</span>" +
+          (it.n ? '<span class="dsl-note">' + esc(it.n) + "</span>" : "");
+        box.appendChild(d);
+      });
+    });
+    if (!box.children.length) {
+      box.innerHTML = '<p class="page-sub">Нічого не знайшлося.</p>';
+    }
+  }
+
+  function renderGramTopics() {
+    var box = document.getElementById("gramTopics");
+    box.innerHTML = "";
+    if (!GRAM) return;
+
+    GRAM.topics.forEach(function (t) {
+      var b = document.createElement("button");
+      b.className = "tile";
+      b.type = "button";
+      b.innerHTML =
+        '<span class="tile-icon">' + t.icon + '</span><span class="tile-text">' +
+        '<span class="tile-title">' + esc(t.title) + '</span>' +
+        '<span class="tile-sub">Завдання без кінця</span></span>';
+      b.addEventListener("click", function () {
+        haptic("tap");
+        startQuiz({ mode: "gram", make: makeGramQuestion, pool: [t.id], endless: true });
+      });
+      box.appendChild(b);
+    });
+
+    var ids = GRAM.topics.map(function (t) { return t.id; });
+
+    var all = document.createElement("button");
+    all.className = "tile";
+    all.type = "button";
+    all.innerHTML =
+      '<span class="tile-icon">🎲</span><span class="tile-text">' +
+      '<span class="tile-title">Усе підряд</span>' +
+      '<span class="tile-sub">Завдання з усіх тем</span></span>';
+    all.addEventListener("click", function () {
+      haptic("tap");
+      startQuiz({ mode: "gram", make: makeGramQuestion, pool: ["all"], endless: true });
+    });
+    box.appendChild(all);
+
+    var round = document.createElement("button");
+    round.className = "tile";
+    round.type = "button";
+    round.innerHTML =
+      '<span class="tile-icon">⏱️</span><span class="tile-text">' +
+      '<span class="tile-title">Раунд на 10 питань</span>' +
+      '<span class="tile-sub">Із результатом у кінці</span></span>';
+    round.addEventListener("click", function () {
+      haptic("tap");
+      startQuiz({ mode: "gram", make: makeGramQuestion, pool: ids, generated: true, limit: 10 });
+    });
+    box.appendChild(round);
+  }
+
   /* ---------- власне колесо кольорів ---------- */
   // Системне вікно вибору кольору (input type=color) на різних телефонах
   // виглядає по-різному, а подекуди й зовсім не відкривається. Тому колесо
@@ -1383,6 +1610,9 @@
         if (target === "fml-temy") renderFmlTopics();
         if (target === "fml-list") renderFmlList("");
         if (target === "praktyka") renderPrcTopics();
+        if (target === "dsl-grupy") renderDslGroups();
+        if (target === "dsl-list") renderDslList("");
+        if (target === "gramatyka") renderGramTopics();
         if (target === "settings") renderSettings();
         go(target);
       });
@@ -1438,6 +1668,14 @@
             startQuiz({ mode: "gph", make: makeGraphQuestion, pool: ["move"], endless: true }); break;
           case "gph-props":
             startQuiz({ mode: "gph", make: makeGraphQuestion, pool: ["props"], endless: true }); break;
+          case "dsl-random":
+            startQuiz({ mode: "eng", make: makeDslQuestion, pool: all(DSL), endless: true }); break;
+          case "dsl-round":
+            startQuiz({ mode: "eng", make: makeDslQuestion, pool: all(DSL), limit: 10 }); break;
+          case "dsl-mistakes":
+            if (!Store.state.mistakes.eng.length) { alert("Помилок поки немає — спершу потренуйся."); return; }
+            startQuiz({ mode: "eng", make: makeDslQuestion, pool: Store.state.mistakes.eng.slice() }); break;
+
           case "gph-round":
             startQuiz({
               mode: "gph", make: makeGraphQuestion,
@@ -1483,6 +1721,9 @@
     });
     document.getElementById("fmlSearch").addEventListener("input", function (e) {
       renderFmlList(e.target.value);
+    });
+    document.getElementById("dslSearch").addEventListener("input", function (e) {
+      renderDslList(e.target.value);
     });
 
     bindWheels();

@@ -14,7 +14,7 @@
        або файлів з даними збільште це число на одиницю: 3 → 4 → 5 …
        Більше ніде нічого правити не потрібно.                            */
 
-    var ASSET_VERSION = 4;
+    var ASSET_VERSION = 5;
 
     (function () {
       var v = "?v=" + ASSET_VERSION;
@@ -37,6 +37,8 @@
         "formuly.js",
         "grafiky.js",
         "praktyka.js",
+        "diyeslova.js",
+        "gramatyka.js",
         "app.js"
       ].forEach(function (name) {
         var s = document.createElement("script");
@@ -100,6 +102,15 @@
         <span class="tile-text">
           <span class="tile-title">Математика</span>
           <span class="tile-sub">Формули · Графіки · Практика</span>
+        </span>
+        <span class="tile-arrow">›</span>
+      </button>
+
+      <button class="tile" data-go="anhl">
+        <span class="tile-icon">🇬🇧</span>
+        <span class="tile-text">
+          <span class="tile-title">Англійська мова</span>
+          <span class="tile-sub">Неправильні дієслова · Граматика</span>
         </span>
         <span class="tile-arrow">›</span>
       </button>
@@ -523,6 +534,105 @@
       <p class="page-sub">Числа в задачах щоразу інші, а неправильні варіанти — це типові помилки</p>
     </header>
     <nav class="tiles" id="prcTopics"></nav>
+  </section>
+
+  <!-- ЕКРАН: АНГЛІЙСЬКА -->
+  <section class="screen" data-screen="anhl">
+    <header class="page-head">
+      <h2>Англійська мова</h2>
+    </header>
+    <nav class="tiles">
+      <button class="tile" data-go="diyeslova">
+        <span class="tile-icon">📙</span>
+        <span class="tile-text">
+          <span class="tile-title">Неправильні дієслова</span>
+          <span class="tile-sub" id="cntDsl"></span>
+        </span>
+        <span class="tile-arrow">›</span>
+      </button>
+      <button class="tile" data-go="gramatyka">
+        <span class="tile-icon">✍️</span>
+        <span class="tile-text">
+          <span class="tile-title">Граматика</span>
+          <span class="tile-sub">Речення з пропуском — формат НМТ</span>
+        </span>
+        <span class="tile-arrow">›</span>
+      </button>
+    </nav>
+  </section>
+
+  <!-- ЕКРАН: НЕПРАВИЛЬНІ ДІЄСЛОВА -->
+  <section class="screen" data-screen="diyeslova">
+    <header class="page-head">
+      <h2>Неправильні дієслова</h2>
+      <p class="page-sub">Питання ставляться в різні боки: і форма, і переклад</p>
+    </header>
+    <nav class="tiles">
+      <button class="tile" data-quiz="dsl-random">
+        <span class="tile-icon">🎯</span>
+        <span class="tile-text">
+          <span class="tile-title">Звичайний режим</span>
+          <span class="tile-sub">Випадкові дієслова, без кінця</span>
+        </span>
+      </button>
+      <button class="tile" data-quiz="dsl-round">
+        <span class="tile-icon">⏱️</span>
+        <span class="tile-text">
+          <span class="tile-title">Раунд на 10 питань</span>
+          <span class="tile-sub">Із результатом у кінці</span>
+        </span>
+      </button>
+      <button class="tile" data-go="dsl-grupy">
+        <span class="tile-icon">🗂️</span>
+        <span class="tile-text">
+          <span class="tile-title">За групами</span>
+          <span class="tile-sub">Від найлегших до найважчих</span>
+        </span>
+        <span class="tile-arrow">›</span>
+      </button>
+      <button class="tile" data-quiz="dsl-mistakes">
+        <span class="tile-icon">🔁</span>
+        <span class="tile-text">
+          <span class="tile-title">Робота над помилками</span>
+          <span class="tile-sub" id="cntDslMistakes"></span>
+        </span>
+      </button>
+      <button class="tile tile-muted" data-go="dsl-list">
+        <span class="tile-icon">📋</span>
+        <span class="tile-text">
+          <span class="tile-title">Шпаргалка</span>
+          <span class="tile-sub">Усі три форми з перекладом</span>
+        </span>
+        <span class="tile-arrow">›</span>
+      </button>
+    </nav>
+  </section>
+
+  <!-- ЕКРАН: ДІЄСЛОВА ЗА ГРУПАМИ -->
+  <section class="screen" data-screen="dsl-grupy">
+    <header class="page-head">
+      <h2>За групами</h2>
+      <p class="page-sub">Дієслова згруповані за тим, як змінюються форми</p>
+    </header>
+    <nav class="tiles" id="dslGroups"></nav>
+  </section>
+
+  <!-- ЕКРАН: ШПАРГАЛКА ДІЄСЛІВ -->
+  <section class="screen" data-screen="dsl-list">
+    <header class="page-head">
+      <h2>Неправильні дієслова</h2>
+      <input type="search" id="dslSearch" class="search" placeholder="Пошук за словом або перекладом…" autocomplete="off">
+    </header>
+    <div class="list" id="dslList"></div>
+  </section>
+
+  <!-- ЕКРАН: ГРАМАТИКА -->
+  <section class="screen" data-screen="gramatyka">
+    <header class="page-head">
+      <h2>Граматика</h2>
+      <p class="page-sub">Речення з пропуском і чотирма варіантами — так само, як на іспиті</p>
+    </header>
+    <nav class="tiles" id="gramTopics"></nav>
   </section>
 
   <!-- ЕКРАН: ГРА -->

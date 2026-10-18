@@ -597,3 +597,8 @@ body {
   max-width: 330px;
 }
 .gate .btn + .btn { margin-top: 10px; }
+
+/* ---------- ШПАРГАЛКА ДІЄСЛІВ ---------- */
+
+.list-item .dsl-forms { font-size: 15.5px; letter-spacing: .01em; }
+.list-item .dsl-note { display: block; margin-top: 4px; font-size: 13px; font-style: italic; opacity: .85; }
