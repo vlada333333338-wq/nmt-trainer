@@ -22,6 +22,8 @@
   var GRAM     = window.ENG_GRAMATYKA   || null;
   var PHR      = window.DATA_PHRASAL    || [];
   var IDI      = window.DATA_IDIOMS     || [];
+  var BIO      = window.DATA_BIO        || [];
+  var BIO_B    = window.DATA_BIO_BLOKY  || [];
   var TX       = window.TeX || { render: function (s) { return esc(s); } };
 
   // Дати розкладаємо в один плоский список, щоб мати наскрізні номери
@@ -43,13 +45,13 @@
     //   letters — завжди літери
     //   words   — завжди ціле слово з виділеною голосною
     opts: { nagMode: "auto" },
-    mistakes: { nag: [], frz: [], dat: [], per: [], pam: [], fml: [], eng: [], phr: [], idi: [] },
+    mistakes: { nag: [], frz: [], dat: [], per: [], pam: [], fml: [], eng: [], phr: [], idi: [], bio: [] },
     stats: { answered: 0, correct: 0, bestStreak: 0 }
   };
 
   // Хмара Telegram дозволяє максимум 4096 символів на один ключ, тому прогрес
   // розкладаємо по окремих ключах: налаштування + список помилок кожного розділу.
-  var CLOUD_BUCKETS = ["nag", "frz", "dat", "per", "pam", "fml", "eng", "phr", "idi"];
+  var CLOUD_BUCKETS = ["nag", "frz", "dat", "per", "pam", "fml", "eng", "phr", "idi", "bio"];
   var MAX_MISTAKES = 300;   // із запасом уміщається в 4096 символів
 
   var Store = {
@@ -916,6 +918,277 @@
     };
   }
 
+  /* ---------- БІОЛОГІЯ ---------- */
+
+  function bioPool(b) {
+    return BIO.filter(function (x) { return x.b === b; });
+  }
+
+  function bioBlockTitle(b) {
+    for (var i = 0; i < BIO_B.length; i++) if (BIO_B[i].id === b) return BIO_B[i].title;
+    return "Біологія";
+  }
+
+  // Варіанти беремо тільки з того самого блоку: функції порівнюються з
+  // функціями, хвороби з хворобами. Інакше правильну відповідь видно за самим
+  // виглядом рядка, навіть не знаючи предмета.
+  function bioOthers(it, field, count, opts) {
+    opts = opts || {};
+    var pool = bioPool(it.b).filter(function (x) {
+      if (x === it || !x[field]) return false;
+      // якщо інший запис дає таку саму відповідь, він не відволікач, а друга
+      // правильна відповідь — такого в питанні бути не може
+      if (opts.notSame && x[opts.notSame] === it[opts.notSame]) return false;
+      return true;
+    });
+    var wide = pickDistractors([pool], it, field, count + 6, opts.group);
+    return bioBalance(it[field], wide, count);
+  }
+
+  function bioGroup(x) { return x.g || ""; }
+
+  // Довжина варіанта не повинна підказувати нічого. Якщо просто брати
+  // перші-ліпші відволікачі, у деяких питаннях правильна відповідь щоразу
+  // виходить найдовшою — так було з вітамінами, де всі жиророзчинні
+  // називаються коротко. Але й зворотне («ніколи не найдовша») — така сама
+  // підказка. Тому місце правильної відповіді за довжиною тягнемо жеребом:
+  // у чверті питань вона найдовша, у чверті найкоротша, у половині —
+  // посередині. Рівно так воно й виглядало б, якби довжина не означала нічого.
+  function bioBalance(right, cand, count) {
+    var L = String(right).length, longer = [], shorter = [], same = [];
+    cand.forEach(function (c) {
+      var n = String(c).length;
+      (n > L ? longer : n < L ? shorter : same).push(c);
+    });
+
+    var r = Math.random();
+    var out = [], rest;
+
+    if (r < 0.25) {            // правильна — найдовша: беремо коротші
+      rest = shorter.concat(same, longer);
+    } else if (r < 0.5) {      // правильна — найкоротша: беремо довші
+      rest = longer.concat(same, shorter);
+    } else {                   // посередині: хоча б один довший і один коротший
+      if (longer.length) out.push(longer.shift());
+      if (shorter.length) out.push(shorter.shift());
+      rest = same.concat(longer, shorter);
+    }
+    while (out.length < count && rest.length) out.push(rest.shift());
+    return out;
+  }
+
+  // Усі хвороби з блоку гормонів — для питань про надлишок і нестачу
+  function bioHvoroby(except) {
+    var out = [];
+    bioPool("gor").forEach(function (x) {
+      [x.nad, x.nes].forEach(function (dd) {
+        if (dd && dd !== except && out.indexOf(dd) < 0) out.push(dd);
+      });
+    });
+    return shuffle(out);
+  }
+
+  var BIO_MEM = {
+    "дві": "має дві мембрани",
+    "одна": "має одну мембрану",
+    "немає": "не має мембрани"
+  };
+
+  var BIO_NF = {
+    org: "Яка функція органели?",
+    bil: "Що робить цей білок?",
+    gor: "Яка дія гормону?",
+    vit: "За що відповідає вітамін?",
+    fer: "Що робить цей фермент?",
+    sys: "Яка функція системи?",
+    moz: "За що відповідає відділ?"
+  };
+
+  var BIO_FN = {
+    org: "Яка органела це робить?",
+    bil: "Який білок це робить?",
+    gor: "Який це гормон?",
+    vit: "Який це вітамін?",
+    fer: "Який це фермент?",
+    ske: "Про що йдеться?",
+    sys: "Яка це система органів?",
+    moz: "Який це відділ мозку?"
+  };
+
+  function makeBioQuestion(idx, depth) {
+    var it = BIO[idx];
+    var d = depth || 0;
+    var note = it.t || "";
+    var full = "<b>" + esc(it.n) + "</b> — " + esc(it.f);
+    var again = function () { return makeBioQuestion(idx, d + 1); };
+
+    var kinds = ["nf"];
+    // Питання «що це за фермент» не ставимо там, де таку саму роботу виконує
+    // ще один запис із блоку: інакше правильних відповідей було б дві, а
+    // зарахувалась би одна.
+    var sameF = bioPool(it.b).filter(function (x) { return x !== it && x.f === it.f; });
+    if (!sameF.length) kinds.push("fn");
+    if (it.m) kinds.push("mem");
+    if (it.w) kinds.push("who");
+    if (it.b === "bil" && it.g) kinds.push("gfun", "gname");
+    if (it.z) kinds.push("zal");
+    if (it.nad) kinds.push("nad");
+    if (it.nes) kinds.push("nes", "nesname");
+    if (it.h) kinds.push("hvor", "hname");
+    if (it.r) kinds.push("roz");
+    if (it.d) kinds.push("doch");
+    if (it.o && it.o.length) kinds.push("organ");
+
+    var kind = d > 6 ? "nf" : kinds[Math.floor(Math.random() * kinds.length)];
+
+    // назва → головне поле
+    if (kind === "nf") {
+      var o = buildOpts(it.f, bioOthers(it, "f", 3, { group: bioGroup }));
+      if (!o) return again();
+      var lab = BIO_NF[it.b] || (it.g === "кількість" ? "Скільки?" : "Що саме?");
+      return { key: idx, label: lab, prompt: esc(it.n), options: o,
+               answerHtml: full, reveal: note };
+    }
+
+    // головне поле → назва
+    if (kind === "fn") {
+      var o2 = buildOpts(it.n, bioOthers(it, "n", 3, { notSame: "f", group: bioGroup }));
+      if (!o2) return again();
+      return { key: idx, label: BIO_FN[it.b] || "Що це?", text: it.f, options: o2,
+               answerHtml: full, reveal: note };
+    }
+
+    // скільки мембран має органела
+    if (kind === "mem") {
+      var mp = bioPool("org").filter(function (x) { return x.m && x.m !== it.m; });
+      var o3 = buildOpts(it.n, bioBalance(it.n, pickDistractors([mp], it, "n", 9), 3));
+      if (!o3) return again();
+      return { key: idx, label: "Будова органели",
+               text: "Яка з цих органел " + BIO_MEM[it.m] + "?", options: o3,
+               answerHtml: "<b>" + esc(it.n) + "</b> — " + BIO_MEM[it.m],
+               reveal: note };
+    }
+
+    // у кого ця структура є
+    if (kind === "who") {
+      var o4 = buildOpts(it.w, bioOthers(it, "w", 3));
+      if (!o4) return again();
+      return { key: idx, label: "Де трапляється", prompt: esc(it.n),
+               text: "У яких клітинах є ця структура?", options: o4,
+               answerHtml: "<b>" + esc(it.n) + "</b> — " + esc(it.w),
+               reveal: note };
+    }
+
+    // білок → тип функції
+    if (kind === "gfun") {
+      var o5 = buildOpts(it.g, bioOthers(it, "g", 3));
+      if (!o5) return again();
+      return { key: idx, label: "Тип функції", prompt: esc(it.n),
+               text: "Яку функцію виконує цей білок?", options: o5,
+               answerHtml: "<b>" + esc(it.n) + "</b> — " + esc(it.g) + " функція: " + esc(it.f),
+               reveal: note };
+    }
+
+    // тип функції → білок
+    if (kind === "gname") {
+      var o6 = buildOpts(it.n, bioOthers(it, "n", 3, { notSame: "g" }));
+      if (!o6) return again();
+      return { key: idx, label: "Функції білків",
+               text: "Який білок виконує " + it.g + " функцію?", options: o6,
+               answerHtml: "<b>" + esc(it.n) + "</b> — " + esc(it.f), reveal: note };
+    }
+
+    // де виробляється
+    if (kind === "zal") {
+      var o7 = buildOpts(it.z, bioOthers(it, "z", 3));
+      if (!o7) return again();
+      return { key: idx, label: it.b === "gor" ? "Яка залоза?" : "Де виробляється?",
+               prompt: esc(it.n),
+               text: it.b === "gor" ? "Яка залоза виробляє цей гормон?"
+                                    : "Де виробляється цей фермент?",
+               options: o7,
+               answerHtml: "<b>" + esc(it.n) + "</b> — " + esc(it.z), reveal: note };
+    }
+
+    // надлишок гормону
+    if (kind === "nad") {
+      var o8 = buildOpts(it.nad, bioBalance(it.nad, bioHvoroby(it.nad), 3));
+      if (!o8) return again();
+      return { key: idx, label: "Надлишок гормону", prompt: esc(it.n),
+               text: "Що буває при надлишку цього гормону?", options: o8,
+               answerHtml: "<b>" + esc(it.n) + "</b>: надлишок — " + esc(it.nad),
+               reveal: note };
+    }
+
+    // нестача гормону
+    if (kind === "nes") {
+      var o9 = buildOpts(it.nes, bioBalance(it.nes, bioHvoroby(it.nes), 3));
+      if (!o9) return again();
+      return { key: idx, label: "Нестача гормону", prompt: esc(it.n),
+               text: "Що буває при нестачі цього гормону?", options: o9,
+               answerHtml: "<b>" + esc(it.n) + "</b>: нестача — " + esc(it.nes),
+               reveal: note };
+    }
+
+    // хвороба → гормон
+    if (kind === "nesname") {
+      var o10 = buildOpts(it.n, bioOthers(it, "n", 3, { notSame: "nes" }));
+      if (!o10) return again();
+      return { key: idx, label: "Нестача якого гормону?", prompt: esc(it.nes),
+               text: "Нестача якого гормону це спричиняє?", options: o10,
+               answerHtml: "<b>" + esc(it.n) + "</b>: нестача — " + esc(it.nes),
+               reveal: note };
+    }
+
+    // вітамін → хвороба
+    if (kind === "hvor") {
+      var o11 = buildOpts(it.h, bioOthers(it, "h", 3));
+      if (!o11) return again();
+      return { key: idx, label: "Нестача вітаміну", prompt: esc(it.n),
+               text: "Що виникає при нестачі цього вітаміну?", options: o11,
+               answerHtml: "<b>" + esc(it.n) + "</b>: нестача — " + esc(it.h),
+               reveal: note };
+    }
+
+    // хвороба → вітамін
+    if (kind === "hname") {
+      var o12 = buildOpts(it.n, bioOthers(it, "n", 3, { notSame: "h" }));
+      if (!o12) return again();
+      return { key: idx, label: "Нестача якого вітаміну?", prompt: esc(it.h),
+               text: "Нестача якого вітаміну це спричиняє?", options: o12,
+               answerHtml: "<b>" + esc(it.n) + "</b>: нестача — " + esc(it.h),
+               reveal: note };
+    }
+
+    // розчинність вітаміну
+    if (kind === "roz") {
+      var o13 = buildOpts(it.n, bioOthers(it, "n", 3, { notSame: "r" }));
+      if (!o13) return again();
+      return { key: idx, label: "Розчинність", text: "Який із цих вітамінів " + it.r + "?",
+               options: o13,
+               answerHtml: "<b>" + esc(it.n) + "</b> — " + esc(it.r),
+               reveal: "Жиророзчинні тільки A, D, E, K. Решта водорозчинні." };
+    }
+
+    // до чого розщеплює
+    if (kind === "doch") {
+      var o14 = buildOpts(it.d, bioOthers(it, "d", 3));
+      if (!o14) return again();
+      return { key: idx, label: "До чого розщеплює?", prompt: esc(it.n),
+               text: "До чого розщеплює цей фермент?", options: o14,
+               answerHtml: "<b>" + esc(it.n) + "</b> — " + esc(it.f) + " " + esc(it.d),
+               reveal: note };
+    }
+
+    // орган → система
+    var org = it.o[Math.floor(Math.random() * it.o.length)];
+    var o15 = buildOpts(it.n, bioOthers(it, "n", 3));
+    if (!o15) return again();
+    return { key: idx, label: "Системи органів", prompt: esc(org),
+             text: "До якої системи органів це належить?", options: o15,
+             answerHtml: "<b>" + esc(it.n) + "</b> — " + esc(it.f), reveal: note };
+  }
+
   /* ---------- ГРАМАТИКА АНГЛІЙСЬКОЇ ---------- */
 
   function gramGens(topicId) {
@@ -1292,6 +1565,10 @@
     document.getElementById("cntIdi").textContent =
       IDI.length + " " + plural(IDI.length, "вираз", "вирази", "виразів");
 
+    document.getElementById("cntBio").textContent =
+      BIO.length + " " + plural(BIO.length, "термін", "терміни", "термінів") +
+      " · " + BIO_B.length + " " + plural(BIO_B.length, "блок", "блоки", "блоків");
+
     var M = Store.state.mistakes;
     setMistakeLabel("cntNagMistakes", M.nag.length, "слово", "слова", "слів");
     setMistakeLabel("cntFrzMistakes", M.frz.length, "вираз", "вирази", "виразів");
@@ -1301,6 +1578,7 @@
     setMistakeLabel("cntDslMistakes", (M.eng || []).length, "дієслово", "дієслова", "дієслів");
     setMistakeLabel("cntPhrMistakes", (M.phr || []).length, "вираз", "вирази", "виразів");
     setMistakeLabel("cntIdiMistakes", (M.idi || []).length, "вираз", "вирази", "виразів");
+    setMistakeLabel("cntBioMistakes", (M.bio || []).length, "термін", "терміни", "термінів");
   }
 
   function setMistakeLabel(id, n, one, few, many) {
@@ -1548,6 +1826,73 @@
       });
       box.appendChild(b);
     });
+  }
+
+  function renderBioBlocks() {
+    var box = document.getElementById("bioBlocks");
+    box.innerHTML = "";
+
+    BIO_B.forEach(function (bl) {
+      var keys = [];
+      BIO.forEach(function (x, i) { if (x.b === bl.id) keys.push(i); });
+      if (!keys.length) return;
+
+      var b = document.createElement("button");
+      b.className = "tile";
+      b.type = "button";
+      b.innerHTML =
+        '<span class="tile-icon">' + bl.icon + '</span><span class="tile-text">' +
+        '<span class="tile-title">' + esc(bl.title) + '</span>' +
+        '<span class="tile-sub">' + esc(bl.sub) + " · " + keys.length + '</span></span>';
+      b.addEventListener("click", function () {
+        haptic("tap");
+        startQuiz({ mode: "bio", make: makeBioQuestion, pool: keys, endless: true });
+      });
+      box.appendChild(b);
+    });
+  }
+
+  function renderBioList(filter) {
+    var box = document.getElementById("bioList");
+    var f = (filter || "").trim().toLowerCase();
+    box.innerHTML = "";
+
+    BIO_B.forEach(function (bl) {
+      var items = BIO.filter(function (x) {
+        if (x.b !== bl.id) return false;
+        if (!f) return true;
+        return (x.n + " " + x.f).toLowerCase().indexOf(f) >= 0;
+      });
+      if (!items.length) return;
+
+      var h = document.createElement("p");
+      h.className = "list-head";
+      h.textContent = bl.icon + " " + bl.title;
+      box.appendChild(h);
+
+      items.forEach(function (it) {
+        var extra = [];
+        if (it.z) extra.push(it.z);
+        if (it.m) extra.push(BIO_MEM[it.m]);
+        if (it.w) extra.push(it.w);
+        if (it.g && it.b === "bil") extra.push(it.g + " функція");
+        if (it.r) extra.push(it.r);
+        if (it.d) extra.push(it.d);
+        if (it.nad) extra.push("надлишок: " + it.nad);
+        if (it.nes) extra.push("нестача: " + it.nes);
+        if (it.h) extra.push("нестача: " + it.h);
+        if (it.o) extra.push(it.o.join(", "));
+        if (it.t) extra.push(it.t);
+
+        var el = document.createElement("div");
+        el.className = "list-item";
+        el.innerHTML = "<b>" + esc(it.n) + "</b><span>" + esc(it.f) + "</span>" +
+          (extra.length ? '<span class="dsl-note">' + esc(extra.join(" · ")) + "</span>" : "");
+        box.appendChild(el);
+      });
+    });
+
+    if (!box.children.length) box.innerHTML = '<p class="page-sub">Нічого не знайшлося.</p>';
   }
 
   function renderDslList(filter) {
@@ -1890,6 +2235,8 @@
         if (target === "gramatyka") renderGramTopics();
         if (target === "phr-list") renderPhrList("");
         if (target === "idi-list") renderIdiList("");
+      if (target === "biol") renderBioBlocks();
+      if (target === "bio-list") renderBioList("");
         if (target === "settings") renderSettings();
         go(target);
       });
@@ -1968,6 +2315,14 @@
             if (!Store.state.mistakes.idi.length) { alert("Помилок поки немає — спершу потренуйся."); return; }
             startQuiz({ mode: "idi", make: makeIdiomQuestion, pool: Store.state.mistakes.idi.slice() }); break;
 
+          case "bio-random":
+            startQuiz({ mode: "bio", make: makeBioQuestion, pool: all(BIO), endless: true }); break;
+          case "bio-round":
+            startQuiz({ mode: "bio", make: makeBioQuestion, pool: all(BIO), limit: 10 }); break;
+          case "bio-mistakes":
+            if (!(Store.state.mistakes.bio || []).length) { alert("Помилок поки немає — спершу потренуйся."); return; }
+            startQuiz({ mode: "bio", make: makeBioQuestion, pool: Store.state.mistakes.bio.slice() }); break;
+
           case "gph-round":
             startQuiz({
               mode: "gph", make: makeGraphQuestion,
@@ -2022,6 +2377,9 @@
     });
     document.getElementById("idiSearch").addEventListener("input", function (e) {
       renderIdiList(e.target.value);
+    });
+    document.getElementById("bioSearch").addEventListener("input", function (e) {
+      renderBioList(e.target.value);
     });
 
     bindWheels();

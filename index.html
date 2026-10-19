@@ -27,7 +27,7 @@
        візьме запасні значення нижче і все одно запрацює.                 */
 
     var FALLBACK = {
-      v: 10,
+      v: 12,
       files: [
         "config.js",
         "tex.js",
@@ -42,6 +42,7 @@
         "diyeslova.js",
         "gramatyka.js",
         "vyrazy.js",
+        "biologiya.js",
         "app.js"
       ]
     };
@@ -158,6 +159,15 @@
         <span class="tile-text">
           <span class="tile-title">Англійська мова</span>
           <span class="tile-sub">Дієслова · Граматика · Вирази</span>
+        </span>
+        <span class="tile-arrow">›</span>
+      </button>
+
+      <button class="tile" data-go="biol">
+        <span class="tile-icon">🧬</span>
+        <span class="tile-text">
+          <span class="tile-title">Біологія</span>
+          <span class="tile-sub">Терміни і функції · 8 блоків</span>
         </span>
         <span class="tile-arrow">›</span>
       </button>
@@ -783,6 +793,55 @@
       <input type="search" id="dslSearch" class="search" placeholder="Пошук за словом або перекладом…" autocomplete="off">
     </header>
     <div class="list" id="dslList"></div>
+  </section>
+
+  <!-- ЕКРАН: БІОЛОГІЯ -->
+  <section class="screen" data-screen="biol">
+    <header class="page-head">
+      <h2>Біологія</h2>
+      <p class="page-sub">Терміни і функції. Кожен блок окремо, щоб не все вперемішку</p>
+    </header>
+    <nav class="tiles" id="bioBlocks"></nav>
+    <nav class="tiles">
+      <button class="tile" data-quiz="bio-random">
+        <span class="tile-icon">🎲</span>
+        <span class="tile-text">
+          <span class="tile-title">Усе підряд</span>
+          <span class="tile-sub" id="cntBio"></span>
+        </span>
+      </button>
+      <button class="tile" data-quiz="bio-round">
+        <span class="tile-icon">⏱️</span>
+        <span class="tile-text">
+          <span class="tile-title">Раунд на 10 питань</span>
+          <span class="tile-sub">Із результатом у кінці</span>
+        </span>
+      </button>
+      <button class="tile" data-quiz="bio-mistakes">
+        <span class="tile-icon">🔁</span>
+        <span class="tile-text">
+          <span class="tile-title">Робота над помилками</span>
+          <span class="tile-sub" id="cntBioMistakes"></span>
+        </span>
+      </button>
+      <button class="tile tile-muted" data-go="bio-list">
+        <span class="tile-icon">📋</span>
+        <span class="tile-text">
+          <span class="tile-title">Шпаргалка</span>
+          <span class="tile-sub">Усі терміни списком</span>
+        </span>
+        <span class="tile-arrow">›</span>
+      </button>
+    </nav>
+  </section>
+
+  <!-- ЕКРАН: ШПАРГАЛКА З БІОЛОГІЇ -->
+  <section class="screen" data-screen="bio-list">
+    <header class="page-head">
+      <h2>Біологія</h2>
+      <input type="search" id="bioSearch" class="search" placeholder="Пошук за назвою або функцією…" autocomplete="off">
+    </header>
+    <div class="list" id="bioList"></div>
   </section>
 
   <!-- ЕКРАН: ГРАМАТИКА -->
