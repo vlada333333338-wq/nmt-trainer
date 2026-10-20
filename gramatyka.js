@@ -300,9 +300,9 @@
   function prepPlace() {
     var c = pick([
       { s: "We arrived ___ the airport two hours early.", r: "at", w: ["in", "to", "on"] },
-      { s: "She is waiting ___ the bus stop.", r: "at", w: ["in", "to", "on"] },
+      { s: "She is standing ___ the bus stop.", r: "at", w: ["in", "to", "on"] },
       { s: "The keys are ___ the table.", r: "on", w: ["in", "at", "to"] },
-      { s: "My books are ___ the bag.", r: "in", w: ["on", "at", "to"] }
+      { s: "My keys are ___ my pocket.", r: "in", w: ["on", "at", "to"] }
     ]);
     return make("Прийменники", c.s, c.r, c.w,
       "at — точка чи місце зустрічі, on — на поверхні, in — усередині.");
@@ -383,7 +383,7 @@
       { s: "Is there ___ milk in the fridge?", r: "any", w: ["some", "no", "a"] },
       { s: "Have you got ___ questions?", r: "any", w: ["some", "no", "a"] },
       { s: "Would you like ___ tea?", r: "some", w: ["any", "no", "a"] },
-      { s: "There is ___ bread on the table.", r: "some", w: ["any", "no", "a"] }
+      { s: "There is ___ bread on the table, help yourself.", r: "some", w: ["any", "no", "a"] }
     ]);
     return make("some / any / no", c.s, c.r, c.w,
       "У питаннях — any, у ствердженні — some, але в пропозиції («Would you like…?») теж some.");
@@ -392,7 +392,7 @@
   function noneNo() {
     var c = pick([
       { s: "I have ___ idea what he means.", r: "no", w: ["any", "some", "none"] },
-      { s: "There were ___ tickets left.", r: "no", w: ["any", "some", "none"] }
+      { s: "There were ___ tickets left, so we went home.", r: "no", w: ["any", "some", "none"] }
     ]);
     return make("some / any / no", c.s, c.r, c.w,
       "no стоїть перед іменником, none — замість нього.");

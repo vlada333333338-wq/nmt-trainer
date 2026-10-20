@@ -847,13 +847,22 @@
 
   function makePhrasalQuestion(idx) {
     var it = PHR[idx];
-    var same = PHR.filter(function (x) { return x.v === it.v && x.p !== it.p; });
     var kind = Math.floor(Math.random() * 3);
     var full = esc(it.v + " " + it.p);
 
+    // Частки, які в цьому ж реченні теж дають правильне речення, у варіанти
+    // не потрапляють — інакше правильних відповідей було б дві.
+    var banned = {};
+    (it.x || []).forEach(function (q) { banned[q] = 1; });
+    function allowed(list) {
+      return list.filter(function (q) { return !banned[q.p]; });
+    }
+    var same = allowed(PHR.filter(function (x) { return x.v === it.v && x.p !== it.p; }));
+    var rest = allowed(PHR);
+
     // 0: вираз → значення
     if (kind === 0) {
-      var o0 = buildOpts(it.m, pickDistractors([same, PHR], it, "m", 3, phrBase));
+      var o0 = buildOpts(it.m, pickDistractors([same, rest], it, "m", 3, phrBase));
       if (!o0) return null;
       return {
         key: idx, label: "Що означає вираз?",
@@ -866,8 +875,9 @@
     // 1: значення → вираз
     if (kind === 1) {
       var o1 = buildOpts(it.v + " " + it.p,
-        pickDistractors([same, PHR], it, "p", 3, phrBase).map(function (pp) {
-          var found = PHR.filter(function (x) { return x.p === pp; })[0];
+        pickDistractors([same, rest], it, "p", 3, phrBase).map(function (pp) {
+          var found = same.filter(function (x) { return x.p === pp; })[0] ||
+                      rest.filter(function (x) { return x.p === pp; })[0];
           return found ? found.v + " " + found.p : null;
         }));
       if (!o1) return null;
@@ -880,7 +890,7 @@
     }
 
     // 2: пропуск у реченні — обери частку. Саме цей формат і на іспиті.
-    var o2 = buildOpts(it.p, pickDistractors([same, PHR], it, "p", 3, phrBase));
+    var o2 = buildOpts(it.p, pickDistractors([same, rest], it, "p", 3, phrBase));
     if (!o2) return null;
     return {
       key: idx, label: "Яке слово пропущено?",
