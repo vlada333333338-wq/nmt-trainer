@@ -1256,7 +1256,9 @@
     streak: 0,
     wrongItems: [],
     current: null,
-    restart: null
+    restart: null,
+    bag: [],           // перемішана колода питань у режимі без кінця
+    lastKey: null
   };
 
   function startQuiz(opts) {
@@ -1264,14 +1266,14 @@
     Quiz.make = opts.make;
     Quiz.pool = opts.pool;
     Quiz.endless = !!opts.endless;
+    Quiz.bag = [];
+    Quiz.lastKey = null;
     if (opts.endless) {
       Quiz.queue = [];
     } else if (opts.generated) {
       // задачі складаються на ходу, тому просто набираємо потрібну кількість
       Quiz.queue = [];
-      for (var g = 0; g < (opts.limit || 10); g++) {
-        Quiz.queue.push(opts.pool[Math.floor(Math.random() * opts.pool.length)]);
-      }
+      for (var g = 0; g < (opts.limit || 10); g++) Quiz.queue.push(drawKey());
     } else {
       Quiz.queue = shuffle(opts.pool).slice(0, opts.limit || opts.pool.length);
     }
@@ -1290,10 +1292,29 @@
     nextQuestion();
   }
 
+  // Питання тягнемо, як карти з колоди: беремо перемішаний список і здаємо
+  // його до кінця, і лише потім перемішуємо наново. Доти, доки колода не
+  // закінчилась, жодне питання не повториться.
+  //
+  // Раніше тут було просте випадкове число. Воно справедливе «в середньому»,
+  // але в коротких сесіях половина питань не випадає взагалі, зате інші
+  // лізуть по кілька разів — на пам'ятках культури це й помітили.
+  function drawKey() {
+    if (!Quiz.bag.length) {
+      Quiz.bag = shuffle(Quiz.pool);
+      // щоб на стику двох кіл те саме питання не випало двічі поспіль
+      if (Quiz.bag.length > 1 && Quiz.bag[0] === Quiz.lastKey) {
+        Quiz.bag.push(Quiz.bag.shift());
+      }
+    }
+    Quiz.lastKey = Quiz.bag.shift();
+    return Quiz.lastKey;
+  }
+
   function nextQuestion() {
     var key;
     if (Quiz.endless) {
-      key = Quiz.pool[Math.floor(Math.random() * Quiz.pool.length)];
+      key = drawKey();
     } else {
       if (Quiz.index >= Quiz.queue.length) { finishQuiz(); return; }
       key = Quiz.queue[Quiz.index];
